@@ -1,0 +1,15 @@
+[tests]
+app_source = ["crates/*/src/**"]
+app_tests = ["crates/*/tests/**"]
+script_tests = ["xtask/**"]
+config_names = ["Cargo.toml", "Cargo.lock", "lefthook.yml", "rust-toolchain.toml", "rustfmt.toml", "clippy.toml", ".markdownlint-cli2.jsonc", "lychee.toml", ".gitleaks.toml", ".rules", "policy/", ".github/", ".cargo/"]
+
+[agents]
+entry_files = ["CLAUDE.md", "AGENTS.md"]
+skills_dir = ".agents/skills"
+skills_links = [".claude/skills"]
+project_skills = ["correction"]
+
+[commits]
+types = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"]
+scopes = ["app", "saves", "catalog", "store", "advisor", "ui", "checks", "ci", "deps", "docs", "research", "rules", "skills", "bootstrap"]
