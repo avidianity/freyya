@@ -9,7 +9,7 @@ Kit spec: [checks/test-oracle-guard.md](https://github.com/avidianity/factory/bl
 ## Implemented by
 
 - Part of `cargo xtask risk-tier`; it compares the base and head versions of each changed Rust file with the `syn` parser.
-- Tier 3 signals: a deleted test function or test file, a new `#[ignore]`, fewer assertion macros, or a new lint suppression.
+- Tier 3 signals: a deleted test function or test file, a newly skipped test (`#[ignore]`, `#[cfg_attr(..., ignore)]`, or any `#[cfg(...)]` other than `cfg(test)` on a test), fewer assertion macros, or a new lint suppression.
 - The tier map makes every protected policy path Tier 3: `.rules`, `docs/agents/`, `docs/checks/`, `policy/`, `xtask/`, `.github/`, `lefthook.yml`, the lint and toolchain files, and the Review mode ADR.
 
 Runs in: CI, from the base revision, as an input to [risk-tier](./risk-tier.md).

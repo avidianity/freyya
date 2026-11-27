@@ -16,3 +16,8 @@
 /.cargo/ @avidianity
 /.markdownlint-cli2.jsonc @avidianity
 /.gitattributes @avidianity
+/**/RULES.md @avidianity
+/.gitignore @avidianity
+/.gitleaks.toml @avidianity
+/.gitleaksignore @avidianity
+/lefthook*.yml @avidianity

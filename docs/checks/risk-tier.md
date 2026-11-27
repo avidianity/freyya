@@ -29,7 +29,7 @@ Kit spec: [checks/risk-tier.md](https://github.com/avidianity/factory/blob/v0.9.
 - Diff signals, found with the `syn` Rust parser by comparing the base and head versions of each changed file:
   a dependency manifest or lockfile change (Tier 2); a lint configuration change in any `Cargo.toml` (Tier 3); more uses of `env::var` and its siblings, `env!`, or `option_env!`, more file writes or deletes (any `std::fs` function that is not a read, `File::create`, `File::options`, or `OpenOptions`), or more network capability (a string with `://` or a bare scheme, `std::net`, `tokio::net`, or an HTTP client crate) (Tier 3); more `DELETE FROM`, `DROP TABLE`, or `TRUNCATE TABLE` strings (Tier 4); and the [test-oracle-guard](./test-oracle-guard.md) signals.
   `use` items count, so an import alias does not hide a capability.
-  Code inside `#[test]` functions and `#[cfg(test)]` modules raises no capability signal, and `xtask/` raises none because the tier map already makes it Tier 3.
+  Code inside `#[test]` functions and modules marked exactly `#[cfg(test)]` raises no capability signal (`cfg(not(test))` and `cfg(any(test, ...))` count as production code), and `xtask/` raises none because the tier map already makes it Tier 3.
 - Changed paths come from `git diff -z`, so a path with quotes or tabs still matches the tier map.
 - The tier map makes every checker config Tier 3, wherever it sits: `.cargo/`, `rustfmt.toml`, `clippy.toml`, `rust-toolchain*`, `.markdownlint*`, `lefthook*.yml`, `.gitleaks.toml`, `.gitleaksignore`, `.gitattributes`, and `.gitignore`.
 
@@ -45,6 +45,9 @@ These are heuristics on the diff, so they miss intent that the syntax hides:
 - URLs or SQL built across literals at compile time (`concat!`) or by string addition;
 - an assertion swapped for `assert!(true)`, which keeps the assertion count;
 - Markdown files that code compiles in, which still match the Tier 0 documentation rule;
-- crates that the pull request adds, because the reverse-dependency graph comes from the base revision.
+- crates that the pull request adds, because the reverse-dependency graph comes from the base revision;
+- a new `build.rs` or `.gitmodules`, byte-string SQL (`b"DROP TABLE"`), and shell commands such as `Command::new("curl")`;
+- an early `return` in a test, which keeps the assertion count;
+- a hand-set `tier-*` label, which stays until the next push, because the policy workflow does not rerun on label events.
 
 `blast-radius` and the Independent reviewer cover semantic impact from Tier 2.

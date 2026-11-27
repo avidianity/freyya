@@ -17,6 +17,7 @@ Kit spec: [checks/evidence-bundle.md](https://github.com/avidianity/factory/blob
 - It reads only the visible text: HTML comments (`<!-- ... -->`) count as empty.
 - It requires a `Revision:` line with the exact head commit SHA, and no template placeholders or template lines (such as an untouched `<Link to the task ...>` line) left.
 - A run URL must point to this repository (`--repo`, from the workflow).
+- Known limits: the check does not ask GitHub whether the run belongs to the head commit, so a made-up run number passes; words like "TODO" count as content; the first `Revision:` line wins. The Independent reviewer and the Owner read the bundle too.
 - From Tier 2, the Safety proof and the Runtime evidence each hold a `https://github.com/<OWNER>/<REPO>/actions/runs/<ID>` link and the first seven characters of the head SHA; the Runtime evidence may instead start with "Not applicable:" and a reason; Tier 2 may say "unproven" in the Safety proof only when the Gaps section lists it.
 - Template: `.github/pull_request_template.md`, from [docs/templates/pr-evidence.md](../templates/pr-evidence.md).
 

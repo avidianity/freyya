@@ -183,6 +183,16 @@ pub(crate) fn root_pub_items(source: &str) -> Result<Vec<String>> {
                 syn::Item::Trait(i) => (&i.vis, i.ident.to_string()),
                 syn::Item::Union(i) => (&i.vis, i.ident.to_string()),
                 syn::Item::Mod(i) => (&i.vis, i.ident.to_string()),
+                syn::Item::Use(i) => (&i.vis, "a pub use re-export".to_owned()),
+                syn::Item::Macro(i) => {
+                    let exported = i.attrs.iter().any(|a| a.path().is_ident("macro_export"));
+                    let name = i
+                        .ident
+                        .as_ref()
+                        .map(ToString::to_string)
+                        .unwrap_or_default();
+                    return exported.then(|| format!("{name} (#[macro_export])"));
+                }
                 _ => return None,
             };
             matches!(vis, syn::Visibility::Public(_)).then_some(name)
@@ -330,10 +340,18 @@ fn tag_ok(text: &str) -> bool {
         return false;
     };
     let reference = reference.trim();
-    let has_ref = reference.starts_with('#')
-        || reference.starts_with("ADR")
-        || reference.starts_with("http://")
-        || reference.starts_with("https://");
+    let issue = reference
+        .strip_prefix('#')
+        .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()));
+    let adr = reference
+        .strip_prefix("ADR ")
+        .is_some_and(|n| n.len() == 4 && n.chars().all(|c| c.is_ascii_digit()));
+    let url = ["http://", "https://"].iter().any(|scheme| {
+        reference
+            .strip_prefix(scheme)
+            .is_some_and(|rest| rest.contains('.'))
+    });
+    let has_ref = issue || adr || url;
     has_ref && !why.trim().is_empty()
 }
 
@@ -451,6 +469,15 @@ mod tests {
             root_pub_items("pub fn unused_pub() {}\nfn main() {}\npub(crate) fn scoped() {}\n")
                 .unwrap_or_default();
         assert_eq!(found, vec!["unused_pub".to_owned()]);
+        let reexport = root_pub_items("mod m {\n    pub fn x() {}\n}\npub use m::x;\n#[macro_export]\nmacro_rules! shout {\n    () => {};\n}\n").unwrap_or_default();
+        assert_eq!(reexport.len(), 2);
+    }
+
+    #[test]
+    fn workaround_references_must_be_concrete() {
+        assert!(!tag_ok("// WORKAROUND(ADR): flaky"));
+        assert!(!tag_ok("// WORKAROUND(#): flaky"));
+        assert!(tag_ok("// WORKAROUND(ADR 0004): one account"));
     }
 
     #[test]

@@ -79,7 +79,14 @@ fn no_verify_outside_message(split: &[String]) -> bool {
 }
 
 pub(super) fn bypass_reason(command: &str) -> Option<&'static str> {
-    let split = words(command);
+    let split: Vec<String> = words(command)
+        .into_iter()
+        .map(|w| {
+            w.chars()
+                .filter(|c| !matches!(c, '`' | '^' | '\\'))
+                .collect()
+        })
+        .collect();
     let lower = command.to_lowercase();
     let squashed: String = lower
         .chars()
@@ -172,6 +179,8 @@ mod tests {
         assert!(bypass_reason("git config core.hooks`Path NUL").is_some());
         assert!(bypass_reason("git -c alias.c='commit --no-verify' c -m x").is_some());
         assert!(bypass_reason("lefthook uninstall").is_some());
+        assert!(bypass_reason("git commit --n`o-verify -m x").is_some());
+        assert!(bypass_reason("git commit --no\\-verify -m x").is_some());
         assert!(bypass_reason("rm .git/hooks/pre-commit").is_some());
     }
 

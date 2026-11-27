@@ -8,7 +8,7 @@ Kit spec: [checks/no-suppressions.md](https://github.com/avidianity/factory/blob
 ## Implemented by
 
 - Command: `cargo xtask no-suppressions`.
-- It finds `allow`, `expect`, and `warn` attributes at the token level, so it also sees them inside `cfg_attr` and inside macro bodies.
+- It finds `allow`, `expect`, and `warn` attributes at the token level, so it also sees them inside `cfg_attr` and inside macro bodies; an attribute built from a macro argument, such as `#[$level(dead_code)]`, also fails.
 - It treats an item name with a leading underscore, such as `fn _unused()`, as a dead-code suppression; `const _` is allowed.
 - Every member `Cargo.toml` must declare `[lints] workspace = true` and nothing else; `[workspace.lints]` must use only `deny` or `forbid`; every `.cargo/config.toml` in the repository must pass no lint-weakening flag (`-A`, `-W`, `--cap-lints`, `--allow`, `--warn`, `--force-warn`) in any `rustflags` key, string or array, or in `[env] RUSTFLAGS`.
 - Approved exceptions: `policy/suppressions.toml` (empty).

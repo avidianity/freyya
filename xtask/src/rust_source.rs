@@ -63,9 +63,10 @@ const NETWORK_CRATES: &[&str] = &[
 const SECRET_FUNCTIONS: &[&str] = &["var", "var_os", "vars", "vars_os"];
 
 fn is_secret_read(segments: &[String]) -> bool {
-    segments
-        .windows(2)
-        .any(|pair| pair[0] == "env" && SECRET_FUNCTIONS.contains(&pair[1].as_str()))
+    segments.windows(2).any(|pair| {
+        pair[0] == "env"
+            && (SECRET_FUNCTIONS.contains(&pair[1].as_str()) || pair[1] == "*" || pair[1] == "self")
+    })
 }
 
 fn is_disk_write(segments: &[String]) -> bool {
@@ -107,7 +108,18 @@ fn is_cfg_test(attr: &Attribute) -> bool {
     let Meta::List(list) = &attr.meta else {
         return false;
     };
-    attr.path().is_ident("cfg") && stream_mentions(&list.tokens, "test")
+    let only_test = {
+        let trees: Vec<TokenTree> = list.tokens.clone().into_iter().collect();
+        matches!(trees.as_slice(), [TokenTree::Ident(ident)] if ident == "test")
+    };
+    attr.path().is_ident("cfg") && only_test
+}
+
+fn skips_test(attr: &Attribute) -> bool {
+    let path = attr.path();
+    let conditional_ignore = path.is_ident("cfg_attr")
+        && matches!(&attr.meta, Meta::List(list) if stream_mentions(&list.tokens, "ignore"));
+    path.is_ident("ignore") || conditional_ignore || (path.is_ident("cfg") && !is_cfg_test(attr))
 }
 
 fn attribute_suppression(body: &TokenStream) -> Option<String> {
@@ -125,7 +137,15 @@ fn attribute_suppression(body: &TokenStream) -> Option<String> {
 }
 
 fn is_doc_attribute(body: &TokenStream) -> bool {
-    matches!(body.clone().into_iter().next(), Some(TokenTree::Ident(name)) if name == "doc")
+    match body.clone().into_iter().next() {
+        Some(TokenTree::Ident(name)) if name == "doc" => true,
+        Some(TokenTree::Ident(name)) if name == "cfg_attr" => stream_mentions(body, "doc"),
+        _ => false,
+    }
+}
+
+fn is_macro_built_attribute(body: &TokenStream) -> bool {
+    matches!(body.clone().into_iter().next(), Some(TokenTree::Punct(p)) if p.as_char() == '$')
 }
 
 fn scan_token_attributes(tokens: TokenStream, found: &mut Vec<Suppression>, docs: &mut Vec<usize>) {
@@ -146,6 +166,12 @@ fn scan_token_attributes(tokens: TokenStream, found: &mut Vec<Suppression>, docs
                 let line = punct.span().start().line;
                 if let Some(lint) = attribute_suppression(&group.stream()) {
                     found.push(Suppression { line, lint });
+                }
+                if is_macro_built_attribute(&group.stream()) {
+                    found.push(Suppression {
+                        line,
+                        lint: "an attribute built from a macro argument".to_owned(),
+                    });
                 }
                 if is_doc_attribute(&group.stream()) {
                     docs.push(line);
@@ -269,7 +295,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
         if item.attrs.iter().any(is_test_attr) {
             let body = self.text_of(item);
             self.facts.tests.insert(item.sig.ident.to_string(), body);
-            if item.attrs.iter().any(|a| a.path().is_ident("ignore")) {
+            if item.attrs.iter().any(skips_test) {
                 self.facts.ignored_tests += 1;
             }
             self.test_depth += 1;
@@ -441,6 +467,35 @@ mod tests {
     fn finds_suppressions_inside_macros() {
         let src = "macro_rules! quiet {\n    ($i:item) => {\n        #[allow(dead_code)]\n        $i\n    };\n}\nquiet! { fn never_called() {} }\n";
         assert_eq!(lines(src), vec![3]);
+    }
+
+    #[test]
+    fn cfg_not_test_is_production_code() {
+        let src = "#[cfg(not(test))]\nmod m {\n    pub(crate) fn f() -> bool {\n        std::env::var(\"K\").is_ok()\n    }\n}\n#[cfg(any(test, unix))]\nfn g() {\n    let _ = std::fs::remove_file(\"x\");\n}\n";
+        let found = facts(src).unwrap_or_default();
+        assert_eq!(found.secret_reads, 1);
+        assert_eq!(found.disk_writes, 1);
+    }
+
+    #[test]
+    fn conditional_skips_count_as_skipped_tests() {
+        let src = "#[test]\n#[cfg_attr(all(), ignore)]\nfn a() {}\n#[test]\n#[cfg(any())]\nfn b() {}\n#[test]\nfn c() {}\n";
+        assert_eq!(facts(src).unwrap_or_default().ignored_tests, 2);
+    }
+
+    #[test]
+    fn macro_built_attributes_and_conditional_docs_are_found() {
+        let src = "macro_rules! lvl {\n    ($l:ident) => {\n        #[$l(dead_code)]\n        fn z() {}\n    };\n}\nlvl!(allow);\n#[cfg_attr(all(), doc = \"narration\")]\nfn y() {}\n";
+        let found = facts(src).unwrap_or_default();
+        assert_eq!(found.suppressions.len(), 1);
+        assert_eq!(found.doc_attribute_lines, vec![8]);
+    }
+
+    #[test]
+    fn env_globs_and_self_aliases_count() {
+        let found =
+            facts("use std::env::*;\nuse std::env::{self as e};\nfn a() {}\n").unwrap_or_default();
+        assert_eq!(found.secret_reads, 2);
     }
 
     #[test]

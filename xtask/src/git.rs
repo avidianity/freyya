@@ -166,12 +166,37 @@ pub(crate) fn parse_name_status(listing: &str) -> Vec<Change> {
         .collect()
 }
 
+fn diff_path(raw: &str) -> Option<String> {
+    let raw = raw.trim_end_matches('\t');
+    let unquoted = match raw.strip_prefix('"').and_then(|r| r.strip_suffix('"')) {
+        Some(inner) => {
+            let mut out = String::new();
+            let mut chars = inner.chars();
+            while let Some(c) = chars.next() {
+                if c != '\\' {
+                    out.push(c);
+                    continue;
+                }
+                match chars.next() {
+                    Some('t') => out.push('\t'),
+                    Some('n') => out.push('\n'),
+                    Some(other) => out.push(other),
+                    None => {}
+                }
+            }
+            out
+        }
+        None => raw.to_owned(),
+    };
+    unquoted.strip_prefix("b/").map(str::to_owned)
+}
+
 pub(crate) fn parse_added_lines(patch: &str) -> BTreeMap<String, BTreeSet<usize>> {
     let mut added: BTreeMap<String, BTreeSet<usize>> = BTreeMap::new();
     let mut current: Option<String> = None;
     for line in patch.lines() {
         if let Some(path) = line.strip_prefix("+++ ") {
-            current = path.strip_prefix("b/").map(str::to_owned);
+            current = diff_path(path);
             continue;
         }
         let Some(hunk) = line.strip_prefix("@@ ") else {
@@ -226,6 +251,14 @@ mod tests {
         let added = parse_added_lines(patch);
         let lines: Vec<usize> = added["x.rs"].iter().copied().collect();
         assert_eq!(lines, vec![2, 3, 12]);
+    }
+
+    #[test]
+    fn paths_with_spaces_and_quotes_keep_their_name() {
+        let patch = "+++ b/crates/freyya/src/bin/my tool.rs\t\n@@ -0,0 +1 @@\n+// x\n+++ \"b/a\\\"b.rs\"\n@@ -0,0 +1 @@\n+// y\n";
+        let added = parse_added_lines(patch);
+        assert!(added.contains_key("crates/freyya/src/bin/my tool.rs"));
+        assert!(added.contains_key("a\"b.rs"));
     }
 
     #[test]
