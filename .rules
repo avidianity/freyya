@@ -1,0 +1,102 @@
+# Agent guidance
+
+Freyya is a local, read-only advisor for single-player Victoria 3 (1.15.x): it reads saves and game files, explains the economy, and suggests actions with sourced numbers, for the Owner only.
+
+Kit: avidianity/factory v0.9.0, bootstrapped 2026-11-28.
+Review mode: Never ([ADR 0001](docs/adr/0001-review-mode-never.md)).
+Standing Decisions: none yet.
+
+`.rules` is the one rules file; `CLAUDE.md` and `AGENTS.md` are links to it; edit `.rules` only.
+Keep `.rules` under 8,000 bytes, task pages and domain `RULES.md` under 16,000 bytes, and all other active docs under 32,000 bytes.
+Skills live in `.agents/skills`; `.claude/skills` links to it.
+
+## Authority and reading
+
+**Mandatory** instructions must be followed, including their stated exceptions.
+**Defaults** apply unless a concrete reason justifies a departure; state that reason.
+Unlabelled requirements in the pages below are mandatory; examples are not extra requirements.
+
+Each kind of guidance has one owner:
+
+- `.rules`: generalized project boundaries and the routing map only.
+- `docs/agents/`: cross-cutting task-specific agent instructions.
+- Domain `RULES.md`: domain-specific agent constraints and boundary exceptions.
+- Domain `HOW-TO.md` (and `how-to/`): current call contracts and how-to guides.
+  A HOW-TO beats an older ADR on call shape.
+- `MAP.md` and domain `STATE.md` (and `state/`): current system topology and current state of a domain.
+- ADRs in `docs/adr/`: decisions and their reasons.
+  A newer accepted ADR that names what it supersedes beats the older one.
+- `GLOSSARY.md` glossaries: domain language.
+
+If code and a document disagree, find which one is stale; do not copy the code or pick the convenient rule.
+Surface a conflict you cannot resolve; do not invent policy.
+
+Instructions load on task match; reference loads on a trigger.
+Read only the task page(s) and files the current request needs, never unrelated pages for general context.
+For a narrow operational request (such as committing, pushing, or running one command), read only its matching task page and skip unrelated docs, maps, and source files.
+
+| Task | Always read | Read when you are about to |
+| ---- | ----------- | -------------------------- |
+| Plan, spec, or split work, design a change, or build or prove a Ticket | [docs/agents/planning.md](docs/agents/planning.md) | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) before you publish a Spec, a Ticket, or a Map |
+| Write or review application code, config, or dependencies | [docs/agents/engineering.md](docs/agents/engineering.md) | [docs/agents/security.md](docs/agents/security.md) before you add, remove, or upgrade a dependency |
+| Implement behavior, fix a bug, run checks, or defer tests | [docs/agents/testing.md](docs/agents/testing.md) | [docs/agents/verification.md](docs/agents/verification.md) before you change a user-visible feature |
+| Commit, push, open or merge a pull request | [docs/agents/git.md](docs/agents/git.md) | [docs/agents/review-and-merge.md](docs/agents/review-and-merge.md) before you open or merge a pull request |
+| Delegate, review subagent work, or hand work off | [docs/agents/delegation.md](docs/agents/delegation.md) | |
+| Write or update rules (`.rules`, `docs/agents/`, domain `RULES.md`), docs, `MAP.md`, `STATE.md`, `HOW-TO.md`, ADRs, or glossary terms | [docs/agents/documentation.md](docs/agents/documentation.md) | [docs/agents/domain.md](docs/agents/domain.md) before you add or change a term |
+| Create or update issues or pull requests | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) | |
+| Handle a repeated agent mistake or an escaped defect | [docs/agents/corrections.md](docs/agents/corrections.md) | |
+| Touch secrets, credentials, production, or untrusted input | [docs/agents/security.md](docs/agents/security.md) | |
+| Work on saves, game files, snapshots, or advice | [GLOSSARY.md](GLOSSARY.md) | [the feasibility note](docs/research/victoria-3-advisor-feasibility.md) before you decide what freyya reads or estimates |
+
+Read a domain's or module's `RULES.md`, `GLOSSARY.md`, `HOW-TO.md`, and `STATE.md` (when present) before you edit files in its folder.
+When `HOW-TO.md` or `STATE.md` indexes topic guides in `how-to/` or `state/`, read only the guides for the area you edit.
+Open ADRs in `docs/adr/` by slug match only when you change or contradict a decision; skip `archive/` unless the task is about history.
+Use glossary terms as written.
+Find runnable commands in `Cargo.toml` and `.cargo/config.toml` (`cargo xtask`), and hook commands in `lefthook.yml`.
+Checks are described in `docs/checks/`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues, Specs, Tickets, and Maps live in GitHub Issues in `avidianity/freyya`.
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Each triage role uses the label of the same name.
+See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` at the root, and ADRs in `docs/adr/`.
+See `docs/agents/domain.md`.
+
+## Mandatory boundaries
+
+- Freyya only reads the game: never write, move, or delete anything in the Victoria 3 install folder, the save folder, or the Paradox launcher settings.
+- Never commit game files or save files; test with synthetic fixtures or copies outside the repository.
+- Automated tests make no network calls and no paid AI calls; inject deterministic stand-ins.
+- At Gate 0 the Owner merges every pull request; never merge one yourself. GitHub cannot enforce this here ([ADR 0004](docs/adr/0004-public-repo-single-account.md)).
+- Never skip Git hooks; fix hook failures instead.
+- Start a persistent server, worker, or watcher only with Owner permission; short-lived test-owned servers are allowed.
+- Before the first code or branch task, fast-forward the main checkout when clean and tracking a remote; otherwise leave it and report why.
+- Read and search only what the current request needs; stop searching once you have enough facts to act, and never bundle unrequested changes.
+- Do not hunt for unrelated bugs; if you directly hit a real bug or risk, finish the requested task untouched and flag it in one short line at the end.
+- Verify version-specific external facts per `docs/agents/engineering.md` before writing code or recommending them.
+- Pipe JSON output for agent reading through `toon`; fall back to raw JSON on failure or when a program consumes it.
+- Run `cargo test --workspace --exclude xtask --locked` once before the first edit, fix only introduced failures, and stop after two failed attempts on one root cause.
+- Work directly unless the Owner asks for delegation or starts a delegating skill.
+- A requested Code review pauses integration and publishing until approval; design approval is not permission to build.
+- The Tier comes from the tier check on the protected base revision, never from the agent.
+- Write no code comments outside the allow-list in `docs/checks/no-comments.md`.
+- Put application tests and coverage only on declared application paths, and high-risk or check-script tests only in the separate script-test path, per `docs/checks/test-scope.md`; never test or measure coverage on tool configs or low-risk helper scripts.
+- Keep `.rules` under 8,000 bytes for generalized rules and routing only; read `docs/agents/documentation.md` before changing any rule or doc.
+- Never add agent attribution or co-author lines to commits, pull requests, issues, or comments.
+
+## Communication
+
+- Ask the Owner at most three questions per message; ask Decisions one at a time, each with a recommendation.
+- Phrase each Decision for the Review mode: in mode Never, use no code and explain each new term in the same sentence.
+- Show a literal sample (command, output, error line) instead of describing one.
+- When the Owner asks which skill to use or how to start one, answer from `docs/owner-guide.md`, and show the exact message to type.
