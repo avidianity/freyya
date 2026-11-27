@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["crates/freyya", "xtask"]
+
+[workspace.package]
+edition = "2024"
+license = "UNLICENSED"
+publish = false
+
+[workspace.lints.rust]
+warnings = "deny"
+dead_code = "deny"
+unused = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }

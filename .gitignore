@@ -1,0 +1,5 @@
+/target/
+*.v3
+.env
+.env.*
+/.claude/settings.local.json
