@@ -1,4 +1,4 @@
-# Victoria 3 AI Advisor — feasibility and research
+# Victoria 3 AI Advisor: feasibility and research
 
 Research date: 2026-11-28. Target: single-player, read-only, local companion for Victoria 3 1.15.x. No game memory access or automatic gameplay. This is a proposed scope, not a confirmed specification. No actual save or installed game files were available for testing.
 
@@ -82,11 +82,11 @@ Bun + TypeScript is reasonable for orchestration, with Rust CLI for decoding. Th
 
 ## 6. Development gates
 
-**Gate A — data feasibility (1–3 focused days, estimate):** Obtain real vanilla 1.15.2 saves. Test compressed/binary and optionally plaintext. Capture UI at the same date. Map essential metrics, identify missing fields, benchmark decode and ingestion, verify exact installed game catalog. Test both early and late game, small and large countries. If essential state data cannot be reconstructed reliably, narrow the advisor or use UI as a supplement.
+**Gate A: data feasibility (1–3 focused days, estimate):** Obtain real vanilla 1.15.2 saves. Test compressed/binary and optionally plaintext. Capture UI at the same date. Map essential metrics, identify missing fields, benchmark decode and ingestion, verify exact installed game catalog. Test both early and late game, small and large countries. If essential state data cannot be reconstructed reliably, narrow the advisor or use UI as a supplement.
 
-**Gate B — basic diagnostic advisor (3–7 focused days after A, estimate):** Budget, market, staffing, infrastructure and construction observations, with evidence-backed explanations. Answer questions such as what is expensive, what is draining money and what needs attention. No precise multi-month forecasting.
+**Gate B: basic diagnostic advisor (3–7 focused days after A, estimate):** Budget, market, staffing, infrastructure and construction observations, with evidence-backed explanations. Answer questions such as what is expensive, what is draining money and what needs attention. No precise multi-month forecasting.
 
-**Gate C — bounded economic action evaluator (2–4 additional weeks, estimate):** Feasible building/state selection, recipe-based marginal estimates, queue awareness, versioned regression tests and observed-versus-estimated comparisons. Start with one action at a time; then consider bundles and multiple goals.
+**Gate C: bounded economic action evaluator (2–4 additional weeks, estimate):** Feasible building/state selection, recipe-based marginal estimates, queue awareness, versioned regression tests and observed-versus-estimated comparisons. Start with one action at a time; then consider bundles and multiple goals.
 
 **Later:** Technology/laws/institutions, trade strategy, diplomacy, military, multiplayer/mod support, sophisticated forecast or simulation. Broad simulator effort likely months or longer and cannot be estimated credibly without measured coverage and accuracy goals.
 
