@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cargo run --quiet --manifest-path \"${CLAUDE_PROJECT_DIR}/Cargo.toml\" --package xtask -- guard"
+            "command": "cargo run --quiet --locked --manifest-path \"${CLAUDE_PROJECT_DIR}/Cargo.toml\" --package xtask -- guard"
           }
         ]
       }
