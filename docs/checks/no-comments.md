@@ -28,8 +28,8 @@ Runs in: hook and CI.
 A change to this list is Tier 3.
 
 - A tagged constraint comment: `// INVARIANT: <WHY>`, `// SAFETY: <WHY>`, or `// WORKAROUND(<REF>): <WHY>`, where `<REF>` is `#<ISSUE>`, `ADR <NNNN>`, or a URL.
-- Plain `//` lines directly after a tagged comment, as its continuation.
+- A multi-line constraint uses one tagged block comment, such as `/* SAFETY: <WHY> */`; each `//` line needs its own tag.
 - A shebang line.
-- Generated files: paths under a `generated/` folder, or files that contain `@generated`.
+- Generated files: paths under a `generated/` folder, or files whose first comment, in the first three lines, contains `@generated`.
 
 Freyya publishes no package, so doc comments (`///` and `//!`) are not on the list.

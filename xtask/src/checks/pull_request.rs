@@ -180,7 +180,10 @@ pub fn risk_tier(repo: &Repo, args: &Args) -> Result<Failures> {
     let base = args.required("--base")?;
     let head = Revision::parse(&args.required("--head")?);
     let map = policy::tier_map_at(repo, &base)?;
+    let script_paths = policy::glob_set(&policy::layout_at(repo, &base)?.tests.script_tests)?;
+    let gate = policy::gate_at(repo, &base)?;
     let crates = workspace_crates(repo)?;
+    let base_rev = Revision::Commit(base.clone());
     let mut findings = Vec::new();
     for change in repo.changes(&base, &head)? {
         let (tier, why) = map.tier_of(&change.path)?;
@@ -197,8 +200,26 @@ pub fn risk_tier(repo: &Repo, args: &Args) -> Result<Failures> {
                 why: "diff signal dependency manifest or lockfile change".to_owned(),
             });
         }
+        if name == "Cargo.toml" {
+            let lints_of = |text: Option<String>| {
+                text.and_then(|t| t.parse::<toml::Table>().ok()).map(|m| {
+                    let own = m.get("lints").cloned();
+                    let shared = m.get("workspace").and_then(|w| w.get("lints")).cloned();
+                    (own, shared)
+                })
+            };
+            let before = lints_of(repo.show(&base_rev, &change.path)?);
+            let after = lints_of(repo.show(&head, &change.path)?);
+            if before != after {
+                findings.push(Finding {
+                    tier: 3,
+                    path: change.path.clone(),
+                    why: "diff signal changes lint configuration".to_owned(),
+                });
+            }
+        }
         findings.extend(reverse_dependency_findings(&change.path, &crates, &map)?);
-        if change.path.ends_with(".rs") {
+        if change.path.ends_with(".rs") && !script_paths.is_match(&change.path) {
             findings.extend(source_findings(
                 repo,
                 &base,
@@ -219,6 +240,15 @@ pub fn risk_tier(repo: &Repo, args: &Args) -> Result<Failures> {
             approval_rule(finding.tier)
         );
     }
+    let merger = if gate.active_gate >= 1 && tier <= gate.active_gate.min(2) {
+        "an agent may merge under the merge contract"
+    } else {
+        "the Owner merges"
+    };
+    println!(
+        "Autonomy gate {} (policy/gate.toml): {merger}.",
+        gate.active_gate
+    );
     if let Some(output) = args.value("--github-output") {
         use std::io::Write;
         let mut file = std::fs::OpenOptions::new()
@@ -256,8 +286,27 @@ fn sections(body: &str) -> BTreeMap<String, String> {
     found
 }
 
-fn has_run_artifact(text: &str) -> bool {
-    text.contains("/actions/runs/")
+fn is_run_url(token: &str) -> bool {
+    let Some(rest) = token.strip_prefix("https://github.com/") else {
+        return false;
+    };
+    let parts: Vec<&str> = rest.split('/').collect();
+    matches!(parts.as_slice(), [owner, repo, "actions", "runs", run, ..]
+        if !owner.is_empty() && !repo.is_empty() && !run.is_empty() && run.chars().all(|c| c.is_ascii_digit()))
+}
+
+fn has_run_artifact(text: &str, head_sha: &str) -> bool {
+    let short = &head_sha[..head_sha.len().min(7)];
+    let has_url = text
+        .split(|c: char| c.is_whitespace() || "()<>[]`\"'".contains(c))
+        .any(is_run_url);
+    has_url && short.len() == 7 && text.contains(short)
+}
+
+fn not_applicable(text: &str) -> bool {
+    text.trim_start()
+        .strip_prefix("Not applicable:")
+        .is_some_and(|reason| reason.trim().len() >= 3)
 }
 
 pub fn bundle_problems(body: &str, head_sha: &str, tier: u8) -> Vec<String> {
@@ -293,11 +342,11 @@ pub fn bundle_problems(body: &str, head_sha: &str, tier: u8) -> Vec<String> {
     if tier >= 2 {
         let safety = found.get("Safety proof").cloned().unwrap_or_default();
         let unproven_ok = tier == 2 && safety.to_lowercase().contains("unproven");
-        if !has_run_artifact(&safety) && !unproven_ok {
-            problems.push("lacks a revision-stamped artifact for the Safety proof".to_owned());
+        if !has_run_artifact(&safety, head_sha) && !unproven_ok {
+            problems.push("lacks a revision-stamped artifact for the Safety proof (a GitHub Actions run URL and the head SHA)".to_owned());
         }
         let runtime = found.get("Runtime evidence").cloned().unwrap_or_default();
-        if !has_run_artifact(&runtime) && !runtime.contains("Not applicable") {
+        if !has_run_artifact(&runtime, head_sha) && !not_applicable(&runtime) {
             problems.push("lacks a revision-stamped artifact for the Runtime evidence".to_owned());
         }
     }
@@ -340,14 +389,13 @@ pub fn behavior_has_test(repo: &Repo, args: &Args) -> Result<Failures> {
     if source_changes.is_empty() || states_no_behavior_change(&body) {
         return Ok(Failures::new());
     }
-    let test_file_changed = changes
-        .iter()
-        .any(|c| c.kind != ChangeKind::Deleted && app_tests.is_match(&c.path));
-    if test_file_changed {
-        return Ok(Failures::new());
-    }
     let base_rev = Revision::Commit(base.clone());
-    for change in source_changes.iter().filter(|c| c.path.ends_with(".rs")) {
+    let candidates = changes.iter().filter(|c| {
+        c.kind != ChangeKind::Deleted
+            && c.path.ends_with(".rs")
+            && (app_source.is_match(&c.path) || app_tests.is_match(&c.path))
+    });
+    for change in candidates {
         let before = facts_at(repo, &base_rev, &change.path)?.unwrap_or_default();
         let after = facts_at(repo, &head, &change.path)?.unwrap_or_default();
         let touched = after
@@ -399,9 +447,27 @@ mod tests {
         assert!(prose.iter().any(|p| p.contains("Safety proof")));
         let linked = body(
             SHA,
-            "Proof: https://github.com/avidianity/freyya/actions/runs/1",
+            "Proof for 0123456: https://github.com/avidianity/freyya/actions/runs/1",
         );
         assert!(bundle_problems(&linked, SHA, 3).is_empty());
+    }
+
+    #[test]
+    fn a_bare_path_or_a_link_without_the_head_sha_is_not_proof() {
+        let bare = body(SHA, "Trust me, I will add /actions/runs/ later.");
+        assert!(!bundle_problems(&bare, SHA, 3).is_empty());
+        let unstamped = body(SHA, "https://github.com/avidianity/freyya/actions/runs/1");
+        assert!(!bundle_problems(&unstamped, SHA, 3).is_empty());
+    }
+
+    #[test]
+    fn runtime_not_applicable_needs_the_exact_form() {
+        let proof = "Proof for 0123456: https://github.com/avidianity/freyya/actions/runs/1";
+        let vague = body(SHA, proof).replace(
+            "Not applicable: no user-visible change.",
+            "It is Not applicable-ish",
+        );
+        assert!(!bundle_problems(&vague, SHA, 3).is_empty());
     }
 
     #[test]

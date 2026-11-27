@@ -8,6 +8,7 @@ Kit spec: [checks/doc-links.md](https://github.com/avidianity/factory/blob/v0.9.
 ## Implemented by
 
 - Command: `cargo xtask doc-links`.
+- It also checks `href` and `src` targets in inline HTML, and it fails a link that climbs above the repository root.
 - It parses every active Markdown file and `.rules` with `pulldown-cmark`, resolves each relative link, and checks each heading anchor with GitHub slug rules.
 - External URLs are out of scope.
 

@@ -15,7 +15,7 @@ Kit spec: [checks/evidence-bundle.md](https://github.com/avidianity/factory/blob
 - Command: `cargo xtask evidence-bundle --body-file <FILE> --head-sha <SHA> --tier <N>`.
 - It requires the sections Tier, Task, Fail-first test, Checks, Safety proof, Runtime evidence, and Gaps, each with content.
 - It requires a `Revision:` line with the exact head commit SHA, and no template placeholders left.
-- From Tier 2, the Safety proof and Runtime evidence link an `/actions/runs/` artifact, or say "Not applicable" for runtime evidence; Tier 2 may say "unproven" and list it under Gaps.
+- From Tier 2, the Safety proof and the Runtime evidence each hold a `https://github.com/<OWNER>/<REPO>/actions/runs/<ID>` link and the first seven characters of the head SHA; the Runtime evidence may instead start with "Not applicable:" and a reason; Tier 2 may say "unproven" in the Safety proof and list it under Gaps.
 - Template: `.github/pull_request_template.md`, from [docs/templates/pr-evidence.md](../templates/pr-evidence.md).
 
 Runs in: CI, in `.github/workflows/policy.yml`, which reads the pull request body as data.

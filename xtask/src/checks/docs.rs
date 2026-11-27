@@ -76,7 +76,11 @@ fn normalize(base: &Path, target: &str) -> Option<String> {
     for component in joined.components() {
         match component {
             Component::ParentDir => {
-                parts.pop()?;
+                if parts.last().is_none_or(|last| last == "..") {
+                    parts.push("..".to_owned());
+                } else {
+                    parts.pop();
+                }
             }
             Component::Normal(part) => parts.push(part.to_string_lossy().into_owned()),
             _ => {}
@@ -284,5 +288,12 @@ mod tests {
             Some("docs/agents/git.md".to_owned())
         );
         assert_eq!(normalize(Path::new(".rules"), "https://x.dev"), None);
+        assert_eq!(
+            normalize(
+                Path::new("docs/agents/git.md"),
+                "../../../../RELEASE-NOTES.md"
+            ),
+            Some("../../RELEASE-NOTES.md".to_owned())
+        );
     }
 }

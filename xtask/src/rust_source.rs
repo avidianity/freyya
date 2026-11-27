@@ -1,10 +1,13 @@
-use anyhow::{Context, Result};
-use proc_macro2::{TokenStream, TokenTree};
+use anyhow::{Context, Result, anyhow};
+use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use ra_ap_rustc_lexer::{FrontmatterAllowed, TokenKind, tokenize};
 use std::collections::BTreeMap;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Attribute, ExprCall, ExprMacro, ItemFn, ItemMod, LitStr, Macro, Meta, StmtMacro};
+use syn::{
+    Attribute, Ident, ImplItemFn, ItemConst, ItemEnum, ItemFn, ItemMod, ItemStatic, ItemStruct,
+    ItemTrait, ItemType, ItemUnion, LitStr, Macro, Meta, UseTree,
+};
 
 #[derive(Default, Debug)]
 pub struct Facts {
@@ -31,36 +34,56 @@ pub struct Comment {
     pub text: String,
 }
 
-const DISK_WRITES: &[&[&str]] = &[
-    &["fs", "write"],
-    &["fs", "remove_file"],
-    &["fs", "remove_dir"],
-    &["fs", "remove_dir_all"],
-    &["fs", "rename"],
-    &["fs", "copy"],
-    &["fs", "create_dir"],
-    &["fs", "create_dir_all"],
-    &["File", "create"],
-    &["File", "create_new"],
-    &["OpenOptions", "new"],
-];
-
-const SECRET_READS: &[&[&str]] = &[
-    &["env", "var"],
-    &["env", "var_os"],
-    &["env", "vars"],
-    &["env", "vars_os"],
-];
-
 const LINT_LEVELS: &[&str] = &["allow", "expect", "warn"];
 
-fn path_ends_with(path: &syn::Path, suffix: &[&str]) -> bool {
-    let segments: Vec<String> = path.segments.iter().map(|s| s.ident.to_string()).collect();
-    segments.len() >= suffix.len()
-        && segments[segments.len() - suffix.len()..]
-            .iter()
-            .zip(suffix)
-            .all(|(a, b)| a == b)
+const FS_READS: &[&str] = &[
+    "read",
+    "read_to_string",
+    "read_dir",
+    "metadata",
+    "symlink_metadata",
+    "canonicalize",
+    "read_link",
+    "exists",
+];
+
+const NETWORK_CRATES: &[&str] = &[
+    "reqwest",
+    "ureq",
+    "hyper",
+    "surf",
+    "isahc",
+    "attohttpc",
+    "curl",
+    "tungstenite",
+];
+
+const SECRET_FUNCTIONS: &[&str] = &["var", "var_os", "vars", "vars_os"];
+
+fn is_secret_read(segments: &[String]) -> bool {
+    segments
+        .windows(2)
+        .any(|pair| pair[0] == "env" && SECRET_FUNCTIONS.contains(&pair[1].as_str()))
+}
+
+fn is_disk_write(segments: &[String]) -> bool {
+    let fs_write = segments
+        .windows(2)
+        .any(|pair| pair[0] == "fs" && pair[1] != "File" && !FS_READS.contains(&pair[1].as_str()));
+    let fs_glob = segments.last().is_some_and(|s| s == "*") && segments.iter().any(|s| s == "fs");
+    let file_write = segments.windows(2).any(|pair| {
+        pair[0] == "File" && ["create", "create_new", "options"].contains(&pair[1].as_str())
+    });
+    let open_options = segments.iter().any(|s| s == "OpenOptions");
+    fs_write || fs_glob || file_write || open_options
+}
+
+fn is_network(segments: &[String]) -> bool {
+    let first = segments.first().map(String::as_str).unwrap_or_default();
+    let std_net = segments
+        .windows(2)
+        .any(|pair| ["std", "tokio", "async_std"].contains(&pair[0].as_str()) && pair[1] == "net");
+    NETWORK_CRATES.contains(&first) || std_net
 }
 
 fn is_test_attr(attr: &Attribute) -> bool {
@@ -68,13 +91,6 @@ fn is_test_attr(attr: &Attribute) -> bool {
         .segments
         .last()
         .is_some_and(|s| s.ident == "test")
-}
-
-fn attr_tokens(attr: &Attribute) -> Option<&TokenStream> {
-    match &attr.meta {
-        Meta::List(list) => Some(&list.tokens),
-        _ => None,
-    }
 }
 
 fn stream_mentions(tokens: &TokenStream, word: &str) -> bool {
@@ -86,19 +102,78 @@ fn stream_mentions(tokens: &TokenStream, word: &str) -> bool {
 }
 
 fn is_cfg_test(attr: &Attribute) -> bool {
-    attr.path().is_ident("cfg") && attr_tokens(attr).is_some_and(|t| stream_mentions(t, "test"))
+    let Meta::List(list) = &attr.meta else {
+        return false;
+    };
+    attr.path().is_ident("cfg") && stream_mentions(&list.tokens, "test")
 }
 
-fn suppressed_lint(attr: &Attribute) -> Option<String> {
-    let path = attr.path();
-    let tokens = attr_tokens(attr);
-    let direct = LINT_LEVELS.iter().any(|level| path.is_ident(level));
-    let conditional = path.is_ident("cfg_attr")
-        && tokens.is_some_and(|t| LINT_LEVELS.iter().any(|level| stream_mentions(t, level)));
-    if direct || conditional {
-        Some(tokens.map(ToString::to_string).unwrap_or_default())
-    } else {
-        None
+fn attribute_suppression(body: &TokenStream) -> Option<String> {
+    let mut trees = body.clone().into_iter();
+    let Some(TokenTree::Ident(name)) = trees.next() else {
+        return None;
+    };
+    let rest: TokenStream = trees.collect();
+    let direct = LINT_LEVELS.iter().any(|level| name == level);
+    let conditional = name == "cfg_attr"
+        && LINT_LEVELS
+            .iter()
+            .any(|level| stream_mentions(&rest, level));
+    (direct || conditional).then(|| format!("{name}{rest}"))
+}
+
+fn scan_token_suppressions(tokens: TokenStream, found: &mut Vec<Suppression>) {
+    let trees: Vec<TokenTree> = tokens.into_iter().collect();
+    for (index, tree) in trees.iter().enumerate() {
+        match tree {
+            TokenTree::Punct(punct) if punct.as_char() == '#' => {
+                let mut next = index + 1;
+                if matches!(trees.get(next), Some(TokenTree::Punct(p)) if p.as_char() == '!') {
+                    next += 1;
+                }
+                if let Some(TokenTree::Group(group)) = trees.get(next)
+                    && group.delimiter() == Delimiter::Bracket
+                    && let Some(lint) = attribute_suppression(&group.stream())
+                {
+                    found.push(Suppression {
+                        line: punct.span().start().line,
+                        lint,
+                    });
+                }
+            }
+            TokenTree::Group(group) => scan_token_suppressions(group.stream(), found),
+            _ => {}
+        }
+    }
+}
+
+fn use_paths(tree: &UseTree, prefix: &mut Vec<String>, out: &mut Vec<Vec<String>>) {
+    match tree {
+        UseTree::Path(path) => {
+            prefix.push(path.ident.to_string());
+            use_paths(&path.tree, prefix, out);
+            prefix.pop();
+        }
+        UseTree::Name(name) => {
+            let mut full = prefix.clone();
+            full.push(name.ident.to_string());
+            out.push(full);
+        }
+        UseTree::Rename(rename) => {
+            let mut full = prefix.clone();
+            full.push(rename.ident.to_string());
+            out.push(full);
+        }
+        UseTree::Glob(_) => {
+            let mut full = prefix.clone();
+            full.push("*".to_owned());
+            out.push(full);
+        }
+        UseTree::Group(group) => {
+            for item in &group.items {
+                use_paths(item, prefix, out);
+            }
+        }
     }
 }
 
@@ -109,23 +184,42 @@ struct Collector<'src> {
 }
 
 impl Collector<'_> {
-    fn scan_macro(&mut self, mac: &Macro) {
-        let name = mac
-            .path
-            .segments
-            .last()
-            .map(|s| s.ident.to_string())
-            .unwrap_or_default();
-        if name.starts_with("assert")
-            || name.starts_with("debug_assert")
-            || name.starts_with("prop_assert")
-        {
-            self.facts.assertions += 1;
+    fn in_test(&self) -> bool {
+        self.test_depth > 0
+    }
+
+    fn record_segments(&mut self, segments: &[String]) {
+        if self.in_test() {
+            return;
         }
-        if name == "env" || name == "option_env" {
+        if is_secret_read(segments) {
             self.facts.secret_reads += 1;
         }
-        self.scan_literals(&mac.tokens);
+        if is_disk_write(segments) {
+            self.facts.disk_writes += 1;
+        }
+        if is_network(segments) {
+            self.facts.network_endpoints += 1;
+        }
+    }
+
+    fn record_string(&mut self, value: &str) {
+        if self.in_test() {
+            self.facts.test_strings.push(value.to_owned());
+            return;
+        }
+        let lower = value.to_lowercase();
+        let scheme_only = ["http", "https", "ws", "wss"].contains(&lower.trim());
+        if lower.contains("://") || scheme_only {
+            self.facts.network_endpoints += 1;
+        }
+        let compact = lower.split_whitespace().collect::<Vec<_>>().join(" ");
+        if ["drop table", "truncate table", "delete from"]
+            .iter()
+            .any(|op| compact.contains(op))
+        {
+            self.facts.bulk_deletes += 1;
+        }
     }
 
     fn scan_literals(&mut self, tokens: &TokenStream) {
@@ -142,23 +236,13 @@ impl Collector<'_> {
         }
     }
 
-    fn record_string(&mut self, value: &str) {
-        let lower = value.to_lowercase();
-        if ["http://", "https://", "ws://", "wss://"]
-            .iter()
-            .any(|scheme| lower.starts_with(scheme))
-        {
-            self.facts.network_endpoints += 1;
-        }
-        let compact = lower.split_whitespace().collect::<Vec<_>>().join(" ");
-        if ["drop table", "truncate table", "delete from"]
-            .iter()
-            .any(|op| compact.contains(op))
-        {
-            self.facts.bulk_deletes += 1;
-        }
-        if self.test_depth > 0 {
-            self.facts.test_strings.push(value.to_owned());
+    fn record_name(&mut self, ident: &Ident) {
+        let name = ident.to_string();
+        if name.starts_with('_') && name != "_" {
+            self.facts.suppressions.push(Suppression {
+                line: ident.span().start().line,
+                lint: format!("dead_code by the leading underscore in `{name}`"),
+            });
         }
     }
 
@@ -169,17 +253,8 @@ impl Collector<'_> {
 }
 
 impl<'ast> Visit<'ast> for Collector<'_> {
-    fn visit_attribute(&mut self, attr: &'ast Attribute) {
-        if let Some(lint) = suppressed_lint(attr) {
-            self.facts.suppressions.push(Suppression {
-                line: attr.span().start().line,
-                lint,
-            });
-        }
-        visit::visit_attribute(self, attr);
-    }
-
     fn visit_item_fn(&mut self, item: &'ast ItemFn) {
+        self.record_name(&item.sig.ident);
         if item.attrs.iter().any(is_test_attr) {
             let body = self.text_of(item);
             self.facts.tests.insert(item.sig.ident.to_string(), body);
@@ -194,6 +269,46 @@ impl<'ast> Visit<'ast> for Collector<'_> {
         }
     }
 
+    fn visit_impl_item_fn(&mut self, item: &'ast ImplItemFn) {
+        self.record_name(&item.sig.ident);
+        visit::visit_impl_item_fn(self, item);
+    }
+
+    fn visit_item_const(&mut self, item: &'ast ItemConst) {
+        self.record_name(&item.ident);
+        visit::visit_item_const(self, item);
+    }
+
+    fn visit_item_static(&mut self, item: &'ast ItemStatic) {
+        self.record_name(&item.ident);
+        visit::visit_item_static(self, item);
+    }
+
+    fn visit_item_struct(&mut self, item: &'ast ItemStruct) {
+        self.record_name(&item.ident);
+        visit::visit_item_struct(self, item);
+    }
+
+    fn visit_item_enum(&mut self, item: &'ast ItemEnum) {
+        self.record_name(&item.ident);
+        visit::visit_item_enum(self, item);
+    }
+
+    fn visit_item_union(&mut self, item: &'ast ItemUnion) {
+        self.record_name(&item.ident);
+        visit::visit_item_union(self, item);
+    }
+
+    fn visit_item_trait(&mut self, item: &'ast ItemTrait) {
+        self.record_name(&item.ident);
+        visit::visit_item_trait(self, item);
+    }
+
+    fn visit_item_type(&mut self, item: &'ast ItemType) {
+        self.record_name(&item.ident);
+        visit::visit_item_type(self, item);
+    }
+
     fn visit_item_mod(&mut self, item: &'ast ItemMod) {
         let is_test_mod = item.attrs.iter().any(is_cfg_test);
         self.test_depth += usize::from(is_test_mod);
@@ -201,32 +316,39 @@ impl<'ast> Visit<'ast> for Collector<'_> {
         self.test_depth -= usize::from(is_test_mod);
     }
 
-    fn visit_expr_call(&mut self, call: &'ast ExprCall) {
-        if let syn::Expr::Path(path) = call.func.as_ref() {
-            if DISK_WRITES
-                .iter()
-                .any(|suffix| path_ends_with(&path.path, suffix))
-            {
-                self.facts.disk_writes += 1;
-            }
-            if SECRET_READS
-                .iter()
-                .any(|suffix| path_ends_with(&path.path, suffix))
-            {
-                self.facts.secret_reads += 1;
-            }
+    fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
+        let mut paths = Vec::new();
+        use_paths(&item.tree, &mut Vec::new(), &mut paths);
+        for path in paths {
+            self.record_segments(&path);
         }
-        visit::visit_expr_call(self, call);
+        visit::visit_item_use(self, item);
     }
 
-    fn visit_expr_macro(&mut self, mac: &'ast ExprMacro) {
-        self.scan_macro(&mac.mac);
-        visit::visit_expr_macro(self, mac);
+    fn visit_path(&mut self, path: &'ast syn::Path) {
+        let segments: Vec<String> = path.segments.iter().map(|s| s.ident.to_string()).collect();
+        self.record_segments(&segments);
+        visit::visit_path(self, path);
     }
 
-    fn visit_stmt_macro(&mut self, mac: &'ast StmtMacro) {
-        self.scan_macro(&mac.mac);
-        visit::visit_stmt_macro(self, mac);
+    fn visit_macro(&mut self, mac: &'ast Macro) {
+        let name = mac
+            .path
+            .segments
+            .last()
+            .map(|s| s.ident.to_string())
+            .unwrap_or_default();
+        if ["assert", "debug_assert", "prop_assert"]
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+        {
+            self.facts.assertions += 1;
+        }
+        if (name == "env" || name == "option_env") && !self.in_test() {
+            self.facts.secret_reads += 1;
+        }
+        self.scan_literals(&mac.tokens);
+        visit::visit_macro(self, mac);
     }
 
     fn visit_lit_str(&mut self, lit: &'ast LitStr) {
@@ -243,6 +365,14 @@ pub fn facts(source: &str) -> Result<Facts> {
         test_depth: 0,
     };
     collector.visit_file(&file);
+    let tokens: TokenStream = source
+        .parse()
+        .map_err(|error| anyhow!("tokenizing Rust source: {error}"))?;
+    let mut suppressions = Vec::new();
+    scan_token_suppressions(tokens, &mut suppressions);
+    suppressions.extend(collector.facts.suppressions);
+    suppressions.sort_by_key(|s| s.line);
+    collector.facts.suppressions = suppressions;
     Ok(collector.facts)
 }
 
@@ -270,6 +400,15 @@ pub fn comments(source: &str) -> Vec<Comment> {
 mod tests {
     use super::{comments, facts};
 
+    fn lines(src: &str) -> Vec<usize> {
+        facts(src)
+            .unwrap_or_default()
+            .suppressions
+            .iter()
+            .map(|s| s.line)
+            .collect()
+    }
+
     #[test]
     fn counts_tests_ignores_and_assertions() {
         let src = "#[cfg(test)]\nmod t {\n    #[test]\n    fn a() { assert_eq!(1, 1); }\n    #[test]\n    #[ignore]\n    fn b() { assert!(true); }\n}\n";
@@ -282,19 +421,23 @@ mod tests {
     #[test]
     fn finds_inner_outer_and_conditional_suppressions() {
         let src = "#![allow(dead_code)]\n#[expect(clippy::all)]\nfn a() {}\n#[cfg_attr(test, allow(unused))]\nfn b() {}\n";
-        let lines: Vec<usize> = facts(src)
-            .unwrap_or_default()
-            .suppressions
-            .iter()
-            .map(|s| s.line)
-            .collect();
-        assert_eq!(lines, vec![1, 2, 4]);
+        assert_eq!(lines(src), vec![1, 2, 4]);
+    }
+
+    #[test]
+    fn finds_suppressions_inside_macros() {
+        let src = "macro_rules! quiet {\n    ($i:item) => {\n        #[allow(dead_code)]\n        $i\n    };\n}\nquiet! { fn never_called() {} }\n";
+        assert_eq!(lines(src), vec![3]);
+    }
+
+    #[test]
+    fn leading_underscore_names_count_as_suppressions() {
+        assert_eq!(lines("fn _never_called() {}\nconst _: () = ();\n"), vec![1]);
     }
 
     #[test]
     fn deny_is_not_a_suppression() {
-        let src = "#![deny(warnings)]\nfn a() {}\n";
-        assert!(facts(src).unwrap_or_default().suppressions.is_empty());
+        assert!(lines("#![deny(warnings)]\nfn a() {}\n").is_empty());
     }
 
     #[test]
@@ -305,6 +448,24 @@ mod tests {
         assert_eq!(found.disk_writes, 1);
         assert_eq!(found.network_endpoints, 1);
         assert_eq!(found.bulk_deletes, 1);
+    }
+
+    #[test]
+    fn aliases_and_builders_still_count() {
+        let src = "use std::env::var as read_setting;\nuse std::net::TcpStream;\nfn a() {\n    let _ = read_setting(\"API_TOKEN\");\n    let _ = std::fs::File::options().write(true).open(\"x\");\n    let _ = format!(\"{}://{}\", \"https\", \"api.example.com\");\n}\n";
+        let found = facts(src).unwrap_or_default();
+        assert_eq!(found.secret_reads, 1);
+        assert_eq!(found.disk_writes, 1);
+        assert!(found.network_endpoints >= 2);
+    }
+
+    #[test]
+    fn reads_and_test_code_raise_no_signal() {
+        let src = "fn a() {\n    let _ = std::fs::read_to_string(\"save.v3\");\n}\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn b() {\n        let _ = std::env::var(\"X\");\n        let _ = \"DELETE FROM snapshots\";\n    }\n}\n";
+        let found = facts(src).unwrap_or_default();
+        assert_eq!(found.disk_writes, 0);
+        assert_eq!(found.secret_reads, 0);
+        assert_eq!(found.bulk_deletes, 0);
     }
 
     #[test]

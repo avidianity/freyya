@@ -27,7 +27,10 @@ Kit spec: [checks/risk-tier.md](https://github.com/avidianity/factory/blob/v0.9.
   A change inside a crate that a Tier 3 or 4 crate depends on takes that Tier.
   Put each risk area in its own crate and list the crate folder in the tier map, so that the graph sees it.
 - Diff signals, found with the `syn` Rust parser by comparing the base and head versions of each changed file:
-  a dependency manifest or lockfile change (Tier 2); a new `http`, `https`, or `wss` endpoint string, a new environment read, or a new file write or delete (Tier 3); a new `DELETE FROM`, `DROP TABLE`, or `TRUNCATE TABLE` string (Tier 4); and the [test-oracle-guard](./test-oracle-guard.md) signals.
+  a dependency manifest or lockfile change (Tier 2); a lint configuration change in any `Cargo.toml` (Tier 3); more uses of `env::var` and its siblings, `env!`, or `option_env!`, more file writes or deletes (any `std::fs` function that is not a read, `File::create`, `File::options`, or `OpenOptions`), or more network capability (a string with `://` or a bare scheme, `std::net`, `tokio::net`, or an HTTP client crate) (Tier 3); more `DELETE FROM`, `DROP TABLE`, or `TRUNCATE TABLE` strings (Tier 4); and the [test-oracle-guard](./test-oracle-guard.md) signals.
+  `use` items count, so an import alias does not hide a capability.
+  Code inside `#[test]` functions and `#[cfg(test)]` modules raises no capability signal, and `xtask/` raises none because the tier map already makes it Tier 3.
+- Changed paths come from `git diff -z`, so a path with quotes or tabs still matches the tier map.
 
 Runs in: CI, in `.github/workflows/policy.yml`, which applies the `tier-<N>` label.
 Agents also run it locally to read the Expected Tier of a change before they open a pull request.

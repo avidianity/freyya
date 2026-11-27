@@ -66,7 +66,7 @@ fn commit_short_no_verify(words: &[String]) -> bool {
 pub fn bypass_reason(command: &str) -> Option<&'static str> {
     let split = words(command);
     let lower = command.to_lowercase();
-    if split.iter().any(|w| w == "--no-verify") {
+    if split.iter().any(|w| w.starts_with("--no-v")) {
         return Some("--no-verify skips Git hooks");
     }
     if commit_short_no_verify(&split) {
@@ -75,10 +75,21 @@ pub fn bypass_reason(command: &str) -> Option<&'static str> {
     if lower.contains("core.hookspath") {
         return Some("overriding core.hooksPath disables Git hooks");
     }
-    if ["lefthook=0", "lefthook_exclude", "lefthook_skip"]
-        .iter()
-        .any(|m| lower.contains(m))
-    {
+    let lefthook_off = split.iter().any(|w| {
+        let word = w.to_lowercase();
+        word.split_once("lefthook=")
+            .is_some_and(|(_, value)| !["1", "true"].contains(&value))
+            || word.starts_with("lefthook_exclude")
+            || word.starts_with("lefthook_skip")
+    }) || [
+        "lefthook_exclude",
+        "lefthook_skip",
+        "lefthook=0",
+        "lefthook=false",
+    ]
+    .iter()
+    .any(|m| lower.contains(m));
+    if lefthook_off {
         return Some("the LEFTHOOK environment overrides skip Git hooks");
     }
     if split
@@ -118,6 +129,9 @@ mod tests {
         assert!(bypass_reason("git -c core.hooksPath=/dev/null commit -m x").is_some());
         assert!(bypass_reason("LEFTHOOK=0 git commit -m x").is_some());
         assert!(bypass_reason("git push --no-verify").is_some());
+        assert!(bypass_reason("git commit --no-verif -m x").is_some());
+        assert!(bypass_reason("LEFTHOOK=false git commit -m x").is_some());
+        assert!(bypass_reason("$env:LEFTHOOK='0'; git commit -m x").is_some());
         assert!(bypass_reason("rm .git/hooks/pre-commit").is_some());
     }
 

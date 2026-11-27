@@ -33,8 +33,8 @@ fn clean(message: &str) -> String {
         .to_owned()
 }
 
-pub fn problems(message: &str, rules: &CommitRules) -> Vec<String> {
-    let message = clean(message);
+pub fn problems(raw: &str, rules: &CommitRules) -> Vec<String> {
+    let message = clean(raw);
     let subject = message.lines().next().unwrap_or_default();
     let mut found = Vec::new();
     match subject.split_once(": ") {
@@ -61,7 +61,7 @@ pub fn problems(message: &str, rules: &CommitRules) -> Vec<String> {
         }
         _ => found.push("the subject is not \"<type>(<scope>): <summary>\"".to_owned()),
     }
-    let lower = message.to_lowercase();
+    let lower = raw.to_lowercase();
     if let Some(marker) = ATTRIBUTION.iter().find(|m| lower.contains(*m)) {
         found.push(format!("it holds an attribution line ({marker})"));
     }
@@ -147,7 +147,13 @@ mod tests {
     }
 
     #[test]
-    fn ignores_git_comment_lines() {
+    fn ignores_git_comment_lines_for_the_subject() {
         assert!(problems("fix(app): x\n# Please enter the commit message\n", &rules()).is_empty());
+    }
+
+    #[test]
+    fn markers_on_hash_lines_still_fail() {
+        assert!(!problems("fix(app): x\n\n# [skip ci]\n", &rules()).is_empty());
+        assert!(!problems("fix(app): x\n\n#Co-Authored-By: A <a@b.c>\n", &rules()).is_empty());
     }
 }

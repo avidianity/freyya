@@ -24,14 +24,46 @@ fn parser(content: &str) -> Parser<'_> {
 pub fn links(content: &str) -> Vec<Link> {
     let mut found = Vec::new();
     for (event, range) in parser(content).into_offset_iter() {
-        if let Event::Start(Tag::Link { dest_url, .. } | Tag::Image { dest_url, .. }) = event {
-            found.push(Link {
-                target: dest_url.to_string(),
-                line: line_of(content, range.start),
-            });
+        match event {
+            Event::Start(Tag::Link { dest_url, .. } | Tag::Image { dest_url, .. }) => {
+                found.push(Link {
+                    target: dest_url.to_string(),
+                    line: line_of(content, range.start),
+                });
+            }
+            Event::Html(html) | Event::InlineHtml(html) => {
+                for target in html_targets(&html) {
+                    found.push(Link {
+                        target,
+                        line: line_of(content, range.start),
+                    });
+                }
+            }
+            _ => {}
         }
     }
     found
+}
+
+fn html_targets(html: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+    for attribute in ["href=", "src="] {
+        let mut rest = html;
+        while let Some(start) = rest.find(attribute) {
+            let after = &rest[start + attribute.len()..];
+            let Some(quote) = after.chars().next().filter(|c| *c == '"' || *c == '\'') else {
+                rest = after;
+                continue;
+            };
+            let value = &after[1..];
+            let Some(end) = value.find(quote) else {
+                break;
+            };
+            targets.push(value[..end].to_owned());
+            rest = &value[end..];
+        }
+    }
+    targets
 }
 
 pub fn heading_anchors(content: &str) -> Vec<String> {
@@ -162,6 +194,16 @@ mod tests {
         let doc = "# T\n\nSee [a](./a.md#x) and\n[b](b.md).\n";
         let found: Vec<String> = links(doc).into_iter().map(|l| l.target).collect();
         assert_eq!(found, vec!["./a.md#x".to_owned(), "b.md".to_owned()]);
+    }
+
+    #[test]
+    fn html_links_are_collected() {
+        let doc = "# T\n\n<a href=\"missing-page.md\">x</a> and <img src='pic.png'>\n";
+        let found: Vec<String> = links(doc).into_iter().map(|l| l.target).collect();
+        assert_eq!(
+            found,
+            vec!["missing-page.md".to_owned(), "pic.png".to_owned()]
+        );
     }
 
     #[test]

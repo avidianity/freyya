@@ -6,6 +6,9 @@ on:
       - "xtask/**"
       - "policy/**"
       - "Cargo.lock"
+      - "Cargo.toml"
+      - ".cargo/**"
+      - "rust-toolchain.toml"
       - "lefthook.yml"
   push:
     branches: [main]
@@ -13,6 +16,9 @@ on:
       - "xtask/**"
       - "policy/**"
       - "Cargo.lock"
+      - "Cargo.toml"
+      - ".cargo/**"
+      - "rust-toolchain.toml"
       - "lefthook.yml"
 
 permissions:

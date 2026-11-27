@@ -13,9 +13,84 @@ fn rust_files(repo: &Repo) -> Result<Vec<String>> {
         .collect())
 }
 
+const WEAK_LEVELS: &[&str] = &["allow", "expect", "warn"];
+
+fn weak_level(value: &toml::Value) -> bool {
+    match value {
+        toml::Value::String(level) => WEAK_LEVELS.contains(&level.as_str()),
+        toml::Value::Table(table) => table
+            .get("level")
+            .and_then(toml::Value::as_str)
+            .is_some_and(|level| WEAK_LEVELS.contains(&level)),
+        _ => false,
+    }
+}
+
+pub fn manifest_lint_problems(path: &str, text: &str) -> Vec<String> {
+    let Ok(manifest) = text.parse::<toml::Table>() else {
+        return vec![format!("{path} is not valid TOML.")];
+    };
+    let mut problems = Vec::new();
+    if manifest.contains_key("workspace") {
+        let lints = manifest
+            .get("workspace")
+            .and_then(|w| w.get("lints"))
+            .and_then(toml::Value::as_table);
+        for (tool, rules) in lints.into_iter().flatten() {
+            for (lint, level) in rules.as_table().into_iter().flatten() {
+                if weak_level(level) {
+                    problems.push(format!("{path} sets {tool}::{lint} to a non-deny level"));
+                }
+            }
+        }
+    }
+    if manifest.contains_key("package") {
+        let only_workspace = manifest
+            .get("lints")
+            .and_then(toml::Value::as_table)
+            .is_some_and(|t| {
+                t.len() == 1 && t.get("workspace").and_then(toml::Value::as_bool) == Some(true)
+            });
+        if !only_workspace {
+            problems.push(format!(
+                "{path} must declare [lints] workspace = true and nothing else"
+            ));
+        }
+    }
+    problems
+}
+
+fn rustflags_problems(repo: &Repo) -> Result<Vec<String>> {
+    let path = ".cargo/config.toml";
+    if !repo.path(path).is_file() {
+        return Ok(Vec::new());
+    }
+    let text = repo.read(path)?;
+    let weakening = ["-A", "--cap-lints", "-W", "--allow", "--warn"];
+    Ok(text
+        .lines()
+        .filter(|line| line.contains("rustflags"))
+        .filter(|line| weakening.iter().any(|flag| line.contains(flag)))
+        .map(|_| format!("{path} passes a lint-weakening flag in rustflags"))
+        .collect())
+}
+
 pub fn no_suppressions(repo: &Repo) -> Result<Failures> {
     let approved = policy::suppressions(repo)?.approved;
     let mut failures = Failures::new();
+    let manifests = repo
+        .files()?
+        .into_iter()
+        .filter(|p| (p == "Cargo.toml" || p.ends_with("/Cargo.toml")) && !p.starts_with("target/"));
+    let mut lint_problems = rustflags_problems(repo)?;
+    for manifest in manifests {
+        lint_problems.extend(manifest_lint_problems(&manifest, &repo.read(&manifest)?));
+    }
+    for problem in lint_problems {
+        failures.push(format!(
+            "{problem}. Fix the cause, or change the rule for the whole Project through an ADR."
+        ));
+    }
     for path in rust_files(repo)? {
         let facts = rust_source::facts(&repo.read(&path)?).with_context(|| format!("in {path}"))?;
         for found in facts.suppressions {
@@ -159,24 +234,14 @@ fn tag_ok(text: &str) -> bool {
     has_ref && !why.trim().is_empty()
 }
 
-fn is_plain_line_comment(text: &str) -> bool {
-    text.starts_with("//") && !text.starts_with("///") && !text.starts_with("//!")
+pub fn disallowed_comments(comments: &[Comment]) -> Vec<&Comment> {
+    comments.iter().filter(|c| !tag_ok(&c.text)).collect()
 }
 
-pub fn disallowed_comments(comments: &[Comment]) -> Vec<&Comment> {
-    let mut bad = Vec::new();
-    let mut previous_tagged_line: Option<usize> = None;
-    for comment in comments {
-        let continuation = is_plain_line_comment(&comment.text)
-            && previous_tagged_line.is_some_and(|line| line + 1 == comment.line);
-        if tag_ok(&comment.text) || continuation {
-            previous_tagged_line = Some(comment.line);
-        } else {
-            previous_tagged_line = None;
-            bad.push(comment);
-        }
-    }
-    bad
+fn generated_header(comments: &[Comment]) -> bool {
+    comments
+        .first()
+        .is_some_and(|c| c.line <= 3 && c.text.contains("@generated"))
 }
 
 pub fn no_comments(repo: &Repo, args: &Args) -> Result<Failures> {
@@ -192,10 +257,10 @@ pub fn no_comments(repo: &Repo, args: &Args) -> Result<Failures> {
         let Some(source) = repo.show(&head, &path)? else {
             continue;
         };
-        if source.contains("@generated") {
+        let comments = rust_source::comments(&source);
+        if generated_header(&comments) {
             continue;
         }
-        let comments = rust_source::comments(&source);
         for comment in disallowed_comments(&comments) {
             let span = comment.text.matches('\n').count();
             let touched = (comment.line..=comment.line + span).any(|line| added.contains(&line));
@@ -212,7 +277,7 @@ pub fn no_comments(repo: &Repo, args: &Args) -> Result<Failures> {
 
 #[cfg(test)]
 mod tests {
-    use super::{disallowed_comments, tag_ok};
+    use super::{disallowed_comments, generated_header, manifest_lint_problems, tag_ok};
     use crate::rust_source::comments;
 
     #[test]
@@ -232,10 +297,42 @@ mod tests {
     }
 
     #[test]
-    fn continuation_lines_follow_a_tag() {
-        let src = "fn a() {\n    // SAFETY: the pointer is valid\n    // for the whole call.\n    let x = 1;\n    // stray narration\n    let _ = x;\n}\n";
+    fn untagged_lines_after_a_tag_still_fail() {
+        let src = "fn a() {\n    // SAFETY: the pointer is valid\n    // stray narration\n    /* SAFETY: a block comment\n       may span lines */\n}\n";
         let found = comments(src);
         let bad: Vec<usize> = disallowed_comments(&found).iter().map(|c| c.line).collect();
-        assert_eq!(bad, vec![5]);
+        assert_eq!(bad, vec![3]);
+    }
+
+    #[test]
+    fn generated_marker_counts_only_in_the_header() {
+        let header = comments("// @generated by build.rs\nfn a() {}\n");
+        assert!(generated_header(&header));
+        let body = comments("fn a() {}\n// return one\nconst NOTE: &str = \"@generated\";\n");
+        assert!(!generated_header(&body));
+    }
+
+    #[test]
+    fn member_manifest_must_inherit_workspace_lints() {
+        let ok = "[package]\nname = \"x\"\n\n[lints]\nworkspace = true\n";
+        assert!(manifest_lint_problems("crates/x/Cargo.toml", ok).is_empty());
+        let override_ = "[package]\nname = \"x\"\n\n[lints]\nrust = { dead_code = \"allow\" }\n";
+        assert_eq!(
+            manifest_lint_problems("crates/x/Cargo.toml", override_).len(),
+            1
+        );
+        let missing = "[package]\nname = \"x\"\n";
+        assert_eq!(
+            manifest_lint_problems("crates/x/Cargo.toml", missing).len(),
+            1
+        );
+    }
+
+    #[test]
+    fn workspace_lints_must_deny() {
+        let weak = "[workspace]\nmembers = []\n\n[workspace.lints.rust]\ndead_code = \"allow\"\n";
+        assert_eq!(manifest_lint_problems("Cargo.toml", weak).len(), 1);
+        let strong = "[workspace]\nmembers = []\n\n[workspace.lints.clippy]\nall = { level = \"deny\", priority = -1 }\n";
+        assert!(manifest_lint_problems("Cargo.toml", strong).is_empty());
     }
 }

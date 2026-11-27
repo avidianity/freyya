@@ -76,6 +76,15 @@ pub fn layout_at(repo: &Repo, base: &str) -> Result<Layout> {
     load_at(repo, base, "policy/layout.toml")
 }
 
+#[derive(Deserialize)]
+pub struct Gate {
+    pub active_gate: u8,
+}
+
+pub fn gate_at(repo: &Repo, base: &str) -> Result<Gate> {
+    load_at(repo, base, "policy/gate.toml")
+}
+
 pub fn tier_map_at(repo: &Repo, base: &str) -> Result<TierMap> {
     load_at(repo, base, "policy/tier-map.toml")
 }

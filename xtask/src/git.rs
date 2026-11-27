@@ -121,27 +121,11 @@ impl Repo {
             "diff".to_owned(),
             "--name-status".to_owned(),
             "--no-renames".to_owned(),
+            "-z".to_owned(),
         ];
         args.extend(Self::diff_args(base, head));
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let listing = self.git(&refs)?;
-        let mut changes = Vec::new();
-        for line in listing.lines() {
-            let mut parts = line.splitn(2, '\t');
-            let (Some(status), Some(path)) = (parts.next(), parts.next()) else {
-                continue;
-            };
-            let kind = match status.chars().next() {
-                Some('A') => ChangeKind::Added,
-                Some('D') => ChangeKind::Deleted,
-                _ => ChangeKind::Modified,
-            };
-            changes.push(Change {
-                path: path.to_owned(),
-                kind,
-            });
-        }
-        Ok(changes)
+        Ok(parse_name_status(&self.git(&refs)?))
     }
 
     pub fn added_lines(
@@ -159,6 +143,27 @@ impl Repo {
         let patch = self.git(&refs)?;
         Ok(parse_added_lines(&patch))
     }
+}
+
+pub fn parse_name_status(listing: &str) -> Vec<Change> {
+    let fields: Vec<&str> = listing.split('\0').collect();
+    fields
+        .chunks(2)
+        .filter_map(|pair| match pair {
+            [status, path] if !status.is_empty() && !path.is_empty() => {
+                let kind = match status.chars().next() {
+                    Some('A') => ChangeKind::Added,
+                    Some('D') => ChangeKind::Deleted,
+                    _ => ChangeKind::Modified,
+                };
+                Some(Change {
+                    path: (*path).to_owned(),
+                    kind,
+                })
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 pub fn parse_added_lines(patch: &str) -> BTreeMap<String, BTreeSet<usize>> {
@@ -197,7 +202,23 @@ pub fn is_symlink(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_added_lines;
+    use super::{ChangeKind, parse_added_lines, parse_name_status};
+
+    #[test]
+    fn name_status_keeps_quotes_and_tabs_in_paths() {
+        let listing = "A\0.github/workflows/a\"b.yml\0M\0policy/tier\tmap.toml\0D\0old.rs\0";
+        let changes = parse_name_status(listing);
+        let paths: Vec<&str> = changes.iter().map(|c| c.path.as_str()).collect();
+        assert_eq!(
+            paths,
+            vec![
+                ".github/workflows/a\"b.yml",
+                "policy/tier\tmap.toml",
+                "old.rs"
+            ]
+        );
+        assert_eq!(changes[2].kind, ChangeKind::Deleted);
+    }
 
     #[test]
     fn added_lines_follow_hunk_headers() {

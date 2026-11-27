@@ -10,6 +10,6 @@ Kit spec: [checks/behavior-has-test.md](https://github.com/avidianity/factory/bl
 
 - Command: `cargo xtask behavior-has-test --base <BASE-REV> --head <HEAD-REV> --body-file <FILE>`.
 - Application source paths: `crates/*/src/**`, from `policy/layout.toml`.
-- A change counts as tested when it changes a file under `crates/*/tests/`, or adds or changes a `#[test]` function in a changed source file, found with `syn`; see [ADR 0002](../adr/0002-rust-test-layout.md).
+- A change counts as tested when it adds or changes a `#[test]` function in a changed Rust file under `crates/*/src/` or `crates/*/tests/`, found with `syn`; any other file under `tests/` does not count; see [ADR 0002](../adr/0002-rust-test-layout.md).
 
 Runs in: CI, in `.github/workflows/policy.yml`.
