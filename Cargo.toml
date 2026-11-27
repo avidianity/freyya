@@ -11,6 +11,7 @@ publish = false
 warnings = "deny"
 dead_code = "deny"
 unused = "deny"
+unreachable_pub = "deny"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }

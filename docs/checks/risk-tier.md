@@ -31,6 +31,19 @@ Kit spec: [checks/risk-tier.md](https://github.com/avidianity/factory/blob/v0.9.
   `use` items count, so an import alias does not hide a capability.
   Code inside `#[test]` functions and `#[cfg(test)]` modules raises no capability signal, and `xtask/` raises none because the tier map already makes it Tier 3.
 - Changed paths come from `git diff -z`, so a path with quotes or tabs still matches the tier map.
+- The tier map makes every checker config Tier 3, wherever it sits: `.cargo/`, `rustfmt.toml`, `clippy.toml`, `rust-toolchain*`, `.markdownlint*`, `lefthook*.yml`, `.gitleaks.toml`, `.gitleaksignore`, `.gitattributes`, and `.gitignore`.
+
+## Known limits
+
+These are heuristics on the diff, so they miss intent that the syntax hides:
+
+- shell commands that delete files (`Command::new("cmd")` with `del`);
+- URLs or SQL built across literals at compile time (`concat!`) or by string addition;
+- an assertion swapped for `assert!(true)`, which keeps the assertion count;
+- Markdown files that code compiles in, which still match the Tier 0 documentation rule;
+- crates that the pull request adds, because the reverse-dependency graph comes from the base revision.
+
+`blast-radius` and the Independent reviewer cover semantic impact from Tier 2.
 
 Runs in: CI, in `.github/workflows/policy.yml`, which applies the `tier-<N>` label.
 Agents also run it locally to read the Expected Tier of a change before they open a pull request.

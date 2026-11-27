@@ -1,11 +1,11 @@
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
-pub struct Link {
+pub(crate) struct Link {
     pub target: String,
     pub line: usize,
 }
 
-pub struct Placeholder {
+pub(crate) struct Placeholder {
     pub text: String,
     pub line: usize,
 }
@@ -21,7 +21,7 @@ fn parser(content: &str) -> Parser<'_> {
     )
 }
 
-pub fn links(content: &str) -> Vec<Link> {
+pub(crate) fn links(content: &str) -> Vec<Link> {
     let mut found = Vec::new();
     for (event, range) in parser(content).into_offset_iter() {
         match event {
@@ -66,7 +66,7 @@ fn html_targets(html: &str) -> Vec<String> {
     targets
 }
 
-pub fn heading_anchors(content: &str) -> Vec<String> {
+pub(crate) fn heading_anchors(content: &str) -> Vec<String> {
     let mut anchors: Vec<String> = Vec::new();
     let mut current: Option<String> = None;
     for event in parser(content) {
@@ -106,7 +106,7 @@ pub fn heading_anchors(content: &str) -> Vec<String> {
     anchors
 }
 
-pub fn slug(heading: &str) -> String {
+pub(crate) fn slug(heading: &str) -> String {
     heading
         .trim()
         .to_lowercase()
@@ -141,7 +141,7 @@ fn scan_placeholders(text: &str, line: usize, found: &mut Vec<Placeholder>) {
     }
 }
 
-pub fn placeholders(content: &str) -> Vec<Placeholder> {
+pub(crate) fn placeholders(content: &str) -> Vec<Placeholder> {
     let mut found = Vec::new();
     let mut template_depth = 0usize;
     for (event, range) in parser(content).into_offset_iter() {

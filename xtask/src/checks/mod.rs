@@ -8,14 +8,14 @@ mod pull_request;
 use crate::git::Repo;
 use anyhow::{Result, bail};
 
-pub type Failures = Vec<String>;
+pub(crate) type Failures = Vec<String>;
 
-pub struct Args {
+pub(crate) struct Args {
     values: Vec<String>,
 }
 
 impl Args {
-    pub fn value(&self, flag: &str) -> Option<String> {
+    pub(crate) fn value(&self, flag: &str) -> Option<String> {
         self.values
             .iter()
             .position(|v| v == flag)
@@ -23,7 +23,7 @@ impl Args {
             .cloned()
     }
 
-    pub fn required(&self, flag: &str) -> Result<String> {
+    pub(crate) fn required(&self, flag: &str) -> Result<String> {
         match self.value(flag) {
             Some(value) => Ok(value),
             None => bail!("missing {flag} <value>"),
@@ -58,7 +58,7 @@ change checks:
   no-comments --base <rev> [--head <rev>|:index]
   commit-message --file <path> | --range <base>..<head>
   risk-tier --base <rev> --head <rev> [--github-output <path>]
-  evidence-bundle --body-file <path> --head-sha <sha> --tier <n>
+  evidence-bundle --body-file <path> --head-sha <sha> --tier <n> --repo <owner/name>
   behavior-has-test --base <rev> --head <rev> --body-file <path>
 
 agent command guard:
@@ -97,7 +97,7 @@ fn run_one(repo: &Repo, name: &str, args: &Args) -> Result<Failures> {
     }
 }
 
-pub fn run(raw: &[String]) -> Result<Failures> {
+pub(crate) fn run(raw: &[String]) -> Result<Failures> {
     let Some((name, rest)) = raw.split_first() else {
         bail!("{USAGE}");
     };

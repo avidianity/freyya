@@ -33,7 +33,7 @@ fn budget_for(path: &str) -> Option<(usize, &'static str)> {
     }
 }
 
-pub fn doc_size(repo: &Repo) -> Result<Failures> {
+pub(super) fn doc_size(repo: &Repo) -> Result<Failures> {
     let mut failures = Failures::new();
     for path in repo.files()? {
         let Some((limit, tier)) = budget_for(&path) else {
@@ -89,7 +89,7 @@ fn normalize(base: &Path, target: &str) -> Option<String> {
     Some(parts.join("/"))
 }
 
-pub fn doc_index(repo: &Repo) -> Result<Failures> {
+pub(super) fn doc_index(repo: &Repo) -> Result<Failures> {
     let files: BTreeSet<String> = repo.files()?.into_iter().collect();
     let mut reached: BTreeSet<String> = BTreeSet::new();
     let mut queue: VecDeque<String> = VecDeque::from([".rules".to_owned()]);
@@ -126,7 +126,7 @@ fn link_scope(path: &str) -> bool {
     path == ".rules" || is_active_doc(path)
 }
 
-pub fn doc_links(repo: &Repo) -> Result<Failures> {
+pub(super) fn doc_links(repo: &Repo) -> Result<Failures> {
     let files: BTreeSet<String> = repo.files()?.into_iter().collect();
     let mut anchors: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut failures = Failures::new();
@@ -183,7 +183,7 @@ fn placeholder_scope(path: &str) -> bool {
         || (path.starts_with("docs/checks/") && path.ends_with(".md"))
 }
 
-pub fn no_placeholders(repo: &Repo) -> Result<Failures> {
+pub(super) fn no_placeholders(repo: &Repo) -> Result<Failures> {
     let mut failures = Failures::new();
     for path in repo.files()?.into_iter().filter(|p| placeholder_scope(p)) {
         for found in markdown::placeholders(&repo.read(&path)?) {
@@ -196,7 +196,7 @@ pub fn no_placeholders(repo: &Repo) -> Result<Failures> {
     Ok(failures)
 }
 
-pub fn doc_style(repo: &Repo) -> Result<Failures> {
+pub(super) fn doc_style(repo: &Repo) -> Result<Failures> {
     let mut failures = Failures::new();
     for path in repo.files()? {
         if !(path == ".rules" || is_active_doc(&path)) {
@@ -214,7 +214,7 @@ pub fn doc_style(repo: &Repo) -> Result<Failures> {
     Ok(failures)
 }
 
-pub fn record_numbers(repo: &Repo) -> Result<Failures> {
+pub(super) fn record_numbers(repo: &Repo) -> Result<Failures> {
     let mut by_number: BTreeMap<u32, Vec<String>> = BTreeMap::new();
     for path in repo.files()? {
         let Some(name) = path.strip_prefix("docs/adr/") else {

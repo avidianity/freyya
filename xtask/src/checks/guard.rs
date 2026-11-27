@@ -63,17 +63,56 @@ fn commit_short_no_verify(words: &[String]) -> bool {
     false
 }
 
-pub fn bypass_reason(command: &str) -> Option<&'static str> {
+fn is_message_flag(word: &str) -> bool {
+    word == "-m"
+        || word == "--message"
+        || word == "-F"
+        || word == "--file"
+        || (word.starts_with('-') && !word.starts_with("--") && word.ends_with('m'))
+}
+
+fn no_verify_outside_message(split: &[String]) -> bool {
+    split.iter().enumerate().any(|(index, word)| {
+        let after_message_flag = index > 0 && is_message_flag(&split[index - 1]);
+        word.contains("--no-v") && !after_message_flag
+    })
+}
+
+pub(super) fn bypass_reason(command: &str) -> Option<&'static str> {
     let split = words(command);
     let lower = command.to_lowercase();
-    if split.iter().any(|w| w.starts_with("--no-v")) {
+    let squashed: String = lower
+        .chars()
+        .filter(|c| !matches!(c, '"' | '\'' | '`' | '^'))
+        .map(|c| if c == '\\' { '/' } else { c })
+        .collect();
+    if no_verify_outside_message(&split) {
         return Some("--no-verify skips Git hooks");
     }
     if commit_short_no_verify(&split) {
         return Some("git commit -n skips Git hooks");
     }
-    if lower.contains("core.hookspath") {
+    if squashed.contains("core.hookspath") || squashed.contains("hookspath") {
         return Some("overriding core.hooksPath disables Git hooks");
+    }
+    let lower_words: Vec<String> = split
+        .iter()
+        .map(|w| w.to_lowercase().replace('\\', "/"))
+        .collect();
+    let lefthook_removed = lower_words
+        .windows(2)
+        .any(|pair| pair[0] == "lefthook" && ["uninstall", "remove"].contains(&pair[1].as_str()));
+    if lefthook_removed {
+        return Some("uninstalling lefthook removes the Git hooks");
+    }
+    let touches_git_dir = lower_words
+        .iter()
+        .any(|w| w == ".git" || w.ends_with("/.git"));
+    let names_hooks = lower_words
+        .iter()
+        .any(|w| w == "hooks" || w.ends_with("/hooks"));
+    if squashed.contains(".git/hooks") || (touches_git_dir && names_hooks) {
+        return Some("editing .git/hooks bypasses the managed hooks");
     }
     let lefthook_off = split.iter().any(|w| {
         let word = w.to_lowercase();
@@ -92,16 +131,10 @@ pub fn bypass_reason(command: &str) -> Option<&'static str> {
     if lefthook_off {
         return Some("the LEFTHOOK environment overrides skip Git hooks");
     }
-    if split
-        .iter()
-        .any(|w| w.starts_with(".git/hooks") || w.contains("/.git/hooks"))
-    {
-        return Some("editing .git/hooks bypasses the managed hooks");
-    }
     None
 }
 
-pub fn run() -> Result<Failures> {
+pub(super) fn run() -> Result<Failures> {
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input)?;
     let event: serde_json::Value =
@@ -132,6 +165,13 @@ mod tests {
         assert!(bypass_reason("git commit --no-verif -m x").is_some());
         assert!(bypass_reason("LEFTHOOK=false git commit -m x").is_some());
         assert!(bypass_reason("$env:LEFTHOOK='0'; git commit -m x").is_some());
+        assert!(bypass_reason("Remove-Item .git\\hooks\\pre-commit").is_some());
+        assert!(bypass_reason("del .git\\hooks\\pre-commit").is_some());
+        assert!(bypass_reason("cd .git && rm -rf hooks").is_some());
+        assert!(bypass_reason("git -c core.hooks\"\"Path=/dev/null commit -m x").is_some());
+        assert!(bypass_reason("git config core.hooks`Path NUL").is_some());
+        assert!(bypass_reason("git -c alias.c='commit --no-verify' c -m x").is_some());
+        assert!(bypass_reason("lefthook uninstall").is_some());
         assert!(bypass_reason("rm .git/hooks/pre-commit").is_some());
     }
 

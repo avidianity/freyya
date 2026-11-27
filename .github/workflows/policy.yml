@@ -56,6 +56,6 @@ jobs:
       - name: evidence-bundle
         env:
           TIER: ${{ steps.tier.outputs.tier }}
-        run: cargo xtask evidence-bundle --body-file "$RUNNER_TEMP/body.md" --head-sha "$HEAD_SHA" --tier "$TIER"
+        run: cargo xtask evidence-bundle --body-file "$RUNNER_TEMP/body.md" --head-sha "$HEAD_SHA" --tier "$TIER" --repo "$REPO"
       - name: behavior-has-test
         run: cargo xtask behavior-has-test --base "$BASE_SHA" --head refs/remotes/pr/head --body-file "$RUNNER_TEMP/body.md"

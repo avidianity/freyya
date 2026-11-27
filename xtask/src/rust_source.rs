@@ -10,12 +10,14 @@ use syn::{
 };
 
 #[derive(Default, Debug)]
-pub struct Facts {
+pub(crate) struct Facts {
     pub tests: BTreeMap<String, String>,
     pub ignored_tests: usize,
     pub assertions: usize,
     pub suppressions: Vec<Suppression>,
     pub test_strings: Vec<String>,
+    pub all_strings: Vec<String>,
+    pub doc_attribute_lines: Vec<usize>,
     pub network_endpoints: usize,
     pub secret_reads: usize,
     pub disk_writes: usize,
@@ -23,13 +25,13 @@ pub struct Facts {
 }
 
 #[derive(Debug, Clone)]
-pub struct Suppression {
+pub(crate) struct Suppression {
     pub line: usize,
     pub lint: String,
 }
 
 #[derive(Debug)]
-pub struct Comment {
+pub(crate) struct Comment {
     pub line: usize,
     pub text: String,
 }
@@ -122,7 +124,11 @@ fn attribute_suppression(body: &TokenStream) -> Option<String> {
     (direct || conditional).then(|| format!("{name}{rest}"))
 }
 
-fn scan_token_suppressions(tokens: TokenStream, found: &mut Vec<Suppression>) {
+fn is_doc_attribute(body: &TokenStream) -> bool {
+    matches!(body.clone().into_iter().next(), Some(TokenTree::Ident(name)) if name == "doc")
+}
+
+fn scan_token_attributes(tokens: TokenStream, found: &mut Vec<Suppression>, docs: &mut Vec<usize>) {
     let trees: Vec<TokenTree> = tokens.into_iter().collect();
     for (index, tree) in trees.iter().enumerate() {
         match tree {
@@ -131,17 +137,21 @@ fn scan_token_suppressions(tokens: TokenStream, found: &mut Vec<Suppression>) {
                 if matches!(trees.get(next), Some(TokenTree::Punct(p)) if p.as_char() == '!') {
                     next += 1;
                 }
-                if let Some(TokenTree::Group(group)) = trees.get(next)
-                    && group.delimiter() == Delimiter::Bracket
-                    && let Some(lint) = attribute_suppression(&group.stream())
-                {
-                    found.push(Suppression {
-                        line: punct.span().start().line,
-                        lint,
-                    });
+                let Some(TokenTree::Group(group)) = trees.get(next) else {
+                    continue;
+                };
+                if group.delimiter() != Delimiter::Bracket {
+                    continue;
+                }
+                let line = punct.span().start().line;
+                if let Some(lint) = attribute_suppression(&group.stream()) {
+                    found.push(Suppression { line, lint });
+                }
+                if is_doc_attribute(&group.stream()) {
+                    docs.push(line);
                 }
             }
-            TokenTree::Group(group) => scan_token_suppressions(group.stream(), found),
+            TokenTree::Group(group) => scan_token_attributes(group.stream(), found, docs),
             _ => {}
         }
     }
@@ -204,6 +214,7 @@ impl Collector<'_> {
     }
 
     fn record_string(&mut self, value: &str) {
+        self.facts.all_strings.push(value.to_owned());
         if self.in_test() {
             self.facts.test_strings.push(value.to_owned());
             return;
@@ -357,7 +368,7 @@ impl<'ast> Visit<'ast> for Collector<'_> {
     }
 }
 
-pub fn facts(source: &str) -> Result<Facts> {
+pub(crate) fn facts(source: &str) -> Result<Facts> {
     let file = syn::parse_file(source).context("parsing Rust source")?;
     let mut collector = Collector {
         source,
@@ -369,14 +380,16 @@ pub fn facts(source: &str) -> Result<Facts> {
         .parse()
         .map_err(|error| anyhow!("tokenizing Rust source: {error}"))?;
     let mut suppressions = Vec::new();
-    scan_token_suppressions(tokens, &mut suppressions);
+    let mut doc_lines = Vec::new();
+    scan_token_attributes(tokens, &mut suppressions, &mut doc_lines);
+    collector.facts.doc_attribute_lines = doc_lines;
     suppressions.extend(collector.facts.suppressions);
     suppressions.sort_by_key(|s| s.line);
     collector.facts.suppressions = suppressions;
     Ok(collector.facts)
 }
 
-pub fn comments(source: &str) -> Vec<Comment> {
+pub(crate) fn comments(source: &str) -> Vec<Comment> {
     let skip = ra_ap_rustc_lexer::strip_shebang(source).unwrap_or(0);
     let mut found = Vec::new();
     let mut offset = skip;

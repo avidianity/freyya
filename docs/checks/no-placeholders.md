@@ -12,5 +12,6 @@ Kit spec: [checks/no-placeholders.md](https://github.com/avidianity/factory/blob
 - It scans `.rules`, `docs/owner-guide.md`, `docs/agents/`, and `docs/checks/` with a Markdown parser.
 - Write a variable that a reader fills per use in capitals, such as `<FILE>` or `<SKILL>`; the check accepts it.
 - Fenced blocks marked `template` are exempt.
+- Known limit: a placeholder split across lines or by emphasis, such as "main *branch*" in angle brackets, is not found.
 
 Runs in: CI, inside `cargo xtask repo-checks`.

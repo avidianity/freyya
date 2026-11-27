@@ -31,7 +31,7 @@ fn resolves_to(repo: &Repo, link: &str, expected: &str) -> bool {
     resolved == Path::new(expected) && repo.path(expected).exists()
 }
 
-pub fn entry_links(repo: &Repo) -> Result<Failures> {
+pub(super) fn entry_links(repo: &Repo) -> Result<Failures> {
     let layout = policy::layout(repo)?;
     let mut failures = Failures::new();
     if !repo.path(".rules").is_file() {
@@ -69,7 +69,7 @@ fn pinned_skills(repo: &Repo) -> Result<BTreeSet<String>> {
         .unwrap_or_default())
 }
 
-pub fn skills_link(repo: &Repo) -> Result<Failures> {
+pub(super) fn skills_link(repo: &Repo) -> Result<Failures> {
     let layout = policy::layout(repo)?;
     let skills_dir = &layout.agents.skills_dir;
     let mut failures = Failures::new();
@@ -90,7 +90,7 @@ pub fn skills_link(repo: &Repo) -> Result<Failures> {
     Ok(failures)
 }
 
-pub fn skills_in_owner_guide(repo: &Repo) -> Result<Failures> {
+pub(super) fn skills_in_owner_guide(repo: &Repo) -> Result<Failures> {
     let layout = policy::layout(repo)?;
     let guide = repo.read("docs/owner-guide.md")?;
     Ok(skill_names(repo, &layout.agents.skills_dir)?

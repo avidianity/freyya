@@ -176,7 +176,7 @@ fn source_findings(
     }
 }
 
-pub fn risk_tier(repo: &Repo, args: &Args) -> Result<Failures> {
+pub(super) fn risk_tier(repo: &Repo, args: &Args) -> Result<Failures> {
     let base = args.required("--base")?;
     let head = Revision::parse(&args.required("--head")?);
     let map = policy::tier_map_at(repo, &base)?;
@@ -286,20 +286,54 @@ fn sections(body: &str) -> BTreeMap<String, String> {
     found
 }
 
-fn is_run_url(token: &str) -> bool {
-    let Some(rest) = token.strip_prefix("https://github.com/") else {
-        return false;
-    };
-    let parts: Vec<&str> = rest.split('/').collect();
-    matches!(parts.as_slice(), [owner, repo, "actions", "runs", run, ..]
-        if !owner.is_empty() && !repo.is_empty() && !run.is_empty() && run.chars().all(|c| c.is_ascii_digit()))
+pub(super) fn visible_text(body: &str) -> String {
+    let mut out = String::new();
+    let mut rest = body;
+    while let Some(start) = rest.find("<!--") {
+        out.push_str(&rest[..start]);
+        match rest[start..].find("-->") {
+            Some(end) => rest = &rest[start + end + 3..],
+            None => rest = "",
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
-fn has_run_artifact(text: &str, head_sha: &str) -> bool {
+fn has_template_line(body: &str) -> bool {
+    body.lines().any(|line| {
+        let mut rest = line;
+        while let Some(start) = rest.find('<') {
+            let after = &rest[start + 1..];
+            let Some(end) = after.find('>') else {
+                return false;
+            };
+            let inner = &after[..end];
+            let sentence = inner.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                && inner.contains(' ')
+                && inner.chars().any(|c| c.is_ascii_lowercase());
+            if sentence {
+                return true;
+            }
+            rest = &after[end + 1..];
+        }
+        false
+    })
+}
+
+fn is_run_url(token: &str, repo: &str) -> bool {
+    let Some(rest) = token.strip_prefix(&format!("https://github.com/{repo}/actions/runs/")) else {
+        return false;
+    };
+    let run = rest.split('/').next().unwrap_or_default();
+    !run.is_empty() && run.chars().all(|c| c.is_ascii_digit())
+}
+
+fn has_run_artifact(text: &str, head_sha: &str, repo: &str) -> bool {
     let short = &head_sha[..head_sha.len().min(7)];
     let has_url = text
         .split(|c: char| c.is_whitespace() || "()<>[]`\"'".contains(c))
-        .any(is_run_url);
+        .any(|token| is_run_url(token, repo));
     has_url && short.len() == 7 && text.contains(short)
 }
 
@@ -309,7 +343,9 @@ fn not_applicable(text: &str) -> bool {
         .is_some_and(|reason| reason.trim().len() >= 3)
 }
 
-pub fn bundle_problems(body: &str, head_sha: &str, tier: u8) -> Vec<String> {
+pub(super) fn bundle_problems(body: &str, head_sha: &str, tier: u8, repo: &str) -> Vec<String> {
+    let visible = visible_text(body);
+    let body = visible.as_str();
     let found = sections(body);
     let mut problems = Vec::new();
     for section in SECTIONS {
@@ -339,28 +375,39 @@ pub fn bundle_problems(body: &str, head_sha: &str, tier: u8) -> Vec<String> {
     {
         problems.push("lacks content: it still holds template placeholders".to_owned());
     }
+    if has_template_line(body) {
+        problems.push("lacks content: it still holds template lines".to_owned());
+    }
     if tier >= 2 {
         let safety = found.get("Safety proof").cloned().unwrap_or_default();
-        let unproven_ok = tier == 2 && safety.to_lowercase().contains("unproven");
-        if !has_run_artifact(&safety, head_sha) && !unproven_ok {
+        let gaps = found
+            .get("Gaps")
+            .cloned()
+            .unwrap_or_default()
+            .to_lowercase();
+        let unproven_ok = tier == 2
+            && safety.to_lowercase().contains("unproven")
+            && (gaps.contains("unproven") || gaps.contains("safety"));
+        if !has_run_artifact(&safety, head_sha, repo) && !unproven_ok {
             problems.push("lacks a revision-stamped artifact for the Safety proof (a GitHub Actions run URL and the head SHA)".to_owned());
         }
         let runtime = found.get("Runtime evidence").cloned().unwrap_or_default();
-        if !has_run_artifact(&runtime, head_sha) && !not_applicable(&runtime) {
+        if !has_run_artifact(&runtime, head_sha, repo) && !not_applicable(&runtime) {
             problems.push("lacks a revision-stamped artifact for the Runtime evidence".to_owned());
         }
     }
     problems
 }
 
-pub fn evidence_bundle(args: &Args) -> Result<Failures> {
+pub(super) fn evidence_bundle(args: &Args) -> Result<Failures> {
     let body = std::fs::read_to_string(args.required("--body-file")?)?;
     let head_sha = args.required("--head-sha")?;
     let tier: u8 = args
         .required("--tier")?
         .parse()
         .context("--tier must be 0 to 4")?;
-    Ok(bundle_problems(&body, &head_sha, tier)
+    let repo = args.required("--repo")?;
+    Ok(bundle_problems(&body, &head_sha, tier, &repo)
         .into_iter()
         .map(|problem| format!("The pull request Evidence bundle {problem}. Use templates/pr-evidence.md (see docs/agents/review-and-merge.md)."))
         .collect())
@@ -374,7 +421,7 @@ fn states_no_behavior_change(body: &str) -> bool {
     })
 }
 
-pub fn behavior_has_test(repo: &Repo, args: &Args) -> Result<Failures> {
+pub(super) fn behavior_has_test(repo: &Repo, args: &Args) -> Result<Failures> {
     let base = args.required("--base")?;
     let head = Revision::parse(&args.required("--head")?);
     let body = std::fs::read_to_string(args.required("--body-file")?)?;
@@ -386,7 +433,7 @@ pub fn behavior_has_test(repo: &Repo, args: &Args) -> Result<Failures> {
         .iter()
         .filter(|c| app_source.is_match(&c.path))
         .collect();
-    if source_changes.is_empty() || states_no_behavior_change(&body) {
+    if source_changes.is_empty() || states_no_behavior_change(&visible_text(&body)) {
         return Ok(Failures::new());
     }
     let base_rev = Revision::Commit(base.clone());
@@ -414,10 +461,11 @@ pub fn behavior_has_test(repo: &Repo, args: &Args) -> Result<Failures> {
 
 #[cfg(test)]
 mod tests {
-    use super::{bundle_problems, signal_findings, states_no_behavior_change};
+    use super::{bundle_problems, signal_findings, states_no_behavior_change, visible_text};
     use crate::rust_source::facts;
 
     const SHA: &str = "0123456789abcdef0123456789abcdef01234567";
+    const REPO: &str = "avidianity/freyya";
 
     fn body(revision: &str, safety: &str) -> String {
         format!(
@@ -427,37 +475,44 @@ mod tests {
 
     #[test]
     fn complete_bundle_passes() {
-        assert!(bundle_problems(&body(SHA, "Not applicable: Tier 0 or 1."), SHA, 1).is_empty());
+        assert!(
+            bundle_problems(&body(SHA, "Not applicable: Tier 0 or 1."), SHA, 1, REPO).is_empty()
+        );
     }
 
     #[test]
     fn summary_only_body_fails() {
-        assert!(bundle_problems("## Summary\n\nDid things.\n", SHA, 1).len() >= 7);
+        assert!(bundle_problems("## Summary\n\nDid things.\n", SHA, 1, REPO).len() >= 7);
     }
 
     #[test]
     fn stale_revision_fails() {
-        let problems = bundle_problems(&body("deadbeef", "Not applicable: Tier 0 or 1."), SHA, 1);
+        let problems = bundle_problems(
+            &body("deadbeef", "Not applicable: Tier 0 or 1."),
+            SHA,
+            1,
+            REPO,
+        );
         assert!(problems.iter().any(|p| p.contains("stale revision")));
     }
 
     #[test]
     fn tier_three_needs_run_artifact() {
-        let prose = bundle_problems(&body(SHA, "I checked it."), SHA, 3);
+        let prose = bundle_problems(&body(SHA, "I checked it."), SHA, 3, REPO);
         assert!(prose.iter().any(|p| p.contains("Safety proof")));
         let linked = body(
             SHA,
             "Proof for 0123456: https://github.com/avidianity/freyya/actions/runs/1",
         );
-        assert!(bundle_problems(&linked, SHA, 3).is_empty());
+        assert!(bundle_problems(&linked, SHA, 3, REPO).is_empty());
     }
 
     #[test]
     fn a_bare_path_or_a_link_without_the_head_sha_is_not_proof() {
         let bare = body(SHA, "Trust me, I will add /actions/runs/ later.");
-        assert!(!bundle_problems(&bare, SHA, 3).is_empty());
+        assert!(!bundle_problems(&bare, SHA, 3, REPO).is_empty());
         let unstamped = body(SHA, "https://github.com/avidianity/freyya/actions/runs/1");
-        assert!(!bundle_problems(&unstamped, SHA, 3).is_empty());
+        assert!(!bundle_problems(&unstamped, SHA, 3, REPO).is_empty());
     }
 
     #[test]
@@ -467,7 +522,7 @@ mod tests {
             "Not applicable: no user-visible change.",
             "It is Not applicable-ish",
         );
-        assert!(!bundle_problems(&vague, SHA, 3).is_empty());
+        assert!(!bundle_problems(&vague, SHA, 3, REPO).is_empty());
     }
 
     #[test]
@@ -486,5 +541,46 @@ mod tests {
         let found = signal_findings("x.rs", &before, &after);
         assert!(found.iter().all(|f| f.tier == 3));
         assert_eq!(found.len(), 2);
+    }
+
+    #[test]
+    fn hidden_html_comments_are_not_content() {
+        let hidden = "## Tier\n\n<!-- todo -->\n\n## Task\n\n<!-- todo -->\n";
+        assert!(
+            bundle_problems(hidden, SHA, 1, REPO)
+                .iter()
+                .any(|p| p.contains("lacks Tier"))
+        );
+        let proof =
+            "<!-- Proof for 0123456: https://github.com/avidianity/freyya/actions/runs/1 -->";
+        assert!(!bundle_problems(&body(SHA, proof), SHA, 3, REPO).is_empty());
+        assert!(!states_no_behavior_change(&visible_text(
+            "<!--\nNo behavior change: hidden\n-->\n"
+        )));
+    }
+
+    #[test]
+    fn foreign_run_urls_and_template_lines_fail() {
+        let foreign = body(
+            SHA,
+            "Proof for 0123456: https://github.com/a/b/actions/runs/1",
+        );
+        assert!(!bundle_problems(&foreign, SHA, 3, REPO).is_empty());
+        let template = body(SHA, "Not applicable: Tier 0 or 1.").replace(
+            "t\n",
+            "<Link to the task, and its acceptance criteria as a checklist.>\n",
+        );
+        assert!(!bundle_problems(&template, SHA, 1, REPO).is_empty());
+    }
+
+    #[test]
+    fn tier_two_unproven_needs_a_gaps_entry() {
+        let unproven = body(SHA, "Safety fact: unproven.");
+        assert!(!bundle_problems(&unproven, SHA, 2, REPO).is_empty());
+        let listed = unproven.replace(
+            "- Deferred coverage: none",
+            "- Unproven Safety fact: see above",
+        );
+        assert!(bundle_problems(&listed, SHA, 2, REPO).is_empty());
     }
 }

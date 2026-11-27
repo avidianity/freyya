@@ -4,13 +4,13 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Clone, Debug)]
-pub enum Revision {
+pub(crate) enum Revision {
     Commit(String),
     Index,
 }
 
 impl Revision {
-    pub fn parse(text: &str) -> Self {
+    pub(crate) fn parse(text: &str) -> Self {
         if text == ":index" {
             Self::Index
         } else {
@@ -19,25 +19,25 @@ impl Revision {
     }
 }
 
-pub struct Repo {
+pub(crate) struct Repo {
     pub root: PathBuf,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ChangeKind {
+pub(crate) enum ChangeKind {
     Added,
     Modified,
     Deleted,
 }
 
 #[derive(Clone, Debug)]
-pub struct Change {
+pub(crate) struct Change {
     pub path: String,
     pub kind: ChangeKind,
 }
 
 impl Repo {
-    pub fn discover() -> Result<Self> {
+    pub(crate) fn discover() -> Result<Self> {
         let output = Command::new("git")
             .args(["rev-parse", "--show-toplevel"])
             .output()
@@ -51,7 +51,7 @@ impl Repo {
         })
     }
 
-    pub fn git(&self, args: &[&str]) -> Result<String> {
+    pub(crate) fn git(&self, args: &[&str]) -> Result<String> {
         let output = Command::new("git")
             .arg("-C")
             .arg(&self.root)
@@ -69,7 +69,7 @@ impl Repo {
         Ok(String::from_utf8(output.stdout)?)
     }
 
-    pub fn files(&self) -> Result<Vec<String>> {
+    pub(crate) fn files(&self) -> Result<Vec<String>> {
         let listing = self.git(&["ls-files", "--cached", "--others", "--exclude-standard"])?;
         let mut files: Vec<String> = listing
             .lines()
@@ -82,16 +82,16 @@ impl Repo {
         Ok(files)
     }
 
-    pub fn path(&self, relative: &str) -> PathBuf {
+    pub(crate) fn path(&self, relative: &str) -> PathBuf {
         self.root.join(relative)
     }
 
-    pub fn read(&self, relative: &str) -> Result<String> {
+    pub(crate) fn read(&self, relative: &str) -> Result<String> {
         let path = self.path(relative);
         std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))
     }
 
-    pub fn show(&self, revision: &Revision, path: &str) -> Result<Option<String>> {
+    pub(crate) fn show(&self, revision: &Revision, path: &str) -> Result<Option<String>> {
         let spec = match revision {
             Revision::Commit(commit) => format!("{commit}:{path}"),
             Revision::Index => format!(":{path}"),
@@ -116,7 +116,7 @@ impl Repo {
         }
     }
 
-    pub fn changes(&self, base: &str, head: &Revision) -> Result<Vec<Change>> {
+    pub(crate) fn changes(&self, base: &str, head: &Revision) -> Result<Vec<Change>> {
         let mut args = vec![
             "diff".to_owned(),
             "--name-status".to_owned(),
@@ -128,7 +128,7 @@ impl Repo {
         Ok(parse_name_status(&self.git(&refs)?))
     }
 
-    pub fn added_lines(
+    pub(crate) fn added_lines(
         &self,
         base: &str,
         head: &Revision,
@@ -145,7 +145,7 @@ impl Repo {
     }
 }
 
-pub fn parse_name_status(listing: &str) -> Vec<Change> {
+pub(crate) fn parse_name_status(listing: &str) -> Vec<Change> {
     let fields: Vec<&str> = listing.split('\0').collect();
     fields
         .chunks(2)
@@ -166,7 +166,7 @@ pub fn parse_name_status(listing: &str) -> Vec<Change> {
         .collect()
 }
 
-pub fn parse_added_lines(patch: &str) -> BTreeMap<String, BTreeSet<usize>> {
+pub(crate) fn parse_added_lines(patch: &str) -> BTreeMap<String, BTreeSet<usize>> {
     let mut added: BTreeMap<String, BTreeSet<usize>> = BTreeMap::new();
     let mut current: Option<String> = None;
     for line in patch.lines() {
@@ -194,7 +194,7 @@ pub fn parse_added_lines(patch: &str) -> BTreeMap<String, BTreeSet<usize>> {
     added
 }
 
-pub fn is_symlink(path: &Path) -> bool {
+pub(crate) fn is_symlink(path: &Path) -> bool {
     std::fs::symlink_metadata(path)
         .map(|meta| meta.file_type().is_symlink())
         .unwrap_or(false)

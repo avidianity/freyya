@@ -4,14 +4,14 @@ use globset::{GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub struct Layout {
+pub(crate) struct Layout {
     pub tests: TestLayout,
     pub agents: AgentLayout,
     pub commits: CommitRules,
 }
 
 #[derive(Deserialize)]
-pub struct TestLayout {
+pub(crate) struct TestLayout {
     pub app_source: Vec<String>,
     pub app_tests: Vec<String>,
     pub script_tests: Vec<String>,
@@ -19,7 +19,7 @@ pub struct TestLayout {
 }
 
 #[derive(Deserialize)]
-pub struct AgentLayout {
+pub(crate) struct AgentLayout {
     pub entry_files: Vec<String>,
     pub skills_dir: String,
     pub skills_links: Vec<String>,
@@ -27,31 +27,31 @@ pub struct AgentLayout {
 }
 
 #[derive(Deserialize)]
-pub struct CommitRules {
+pub(crate) struct CommitRules {
     pub types: Vec<String>,
     pub scopes: Vec<String>,
 }
 
 #[derive(Deserialize)]
-pub struct TierMap {
+pub(crate) struct TierMap {
     pub default: u8,
     pub rule: Vec<TierRule>,
 }
 
 #[derive(Deserialize)]
-pub struct TierRule {
+pub(crate) struct TierRule {
     pub tier: u8,
     pub reason: String,
     pub paths: Vec<String>,
 }
 
 #[derive(Deserialize)]
-pub struct Suppressions {
+pub(crate) struct Suppressions {
     pub approved: Vec<ApprovedSuppression>,
 }
 
 #[derive(Deserialize)]
-pub struct ApprovedSuppression {
+pub(crate) struct ApprovedSuppression {
     pub path: String,
     pub lint: String,
 }
@@ -68,32 +68,32 @@ fn load_at<T: for<'de> Deserialize<'de>>(repo: &Repo, base: &str, name: &str) ->
     }
 }
 
-pub fn layout(repo: &Repo) -> Result<Layout> {
+pub(crate) fn layout(repo: &Repo) -> Result<Layout> {
     load(repo, "policy/layout.toml")
 }
 
-pub fn layout_at(repo: &Repo, base: &str) -> Result<Layout> {
+pub(crate) fn layout_at(repo: &Repo, base: &str) -> Result<Layout> {
     load_at(repo, base, "policy/layout.toml")
 }
 
 #[derive(Deserialize)]
-pub struct Gate {
+pub(crate) struct Gate {
     pub active_gate: u8,
 }
 
-pub fn gate_at(repo: &Repo, base: &str) -> Result<Gate> {
+pub(crate) fn gate_at(repo: &Repo, base: &str) -> Result<Gate> {
     load_at(repo, base, "policy/gate.toml")
 }
 
-pub fn tier_map_at(repo: &Repo, base: &str) -> Result<TierMap> {
+pub(crate) fn tier_map_at(repo: &Repo, base: &str) -> Result<TierMap> {
     load_at(repo, base, "policy/tier-map.toml")
 }
 
-pub fn suppressions(repo: &Repo) -> Result<Suppressions> {
+pub(crate) fn suppressions(repo: &Repo) -> Result<Suppressions> {
     load(repo, "policy/suppressions.toml")
 }
 
-pub fn glob_set(patterns: &[String]) -> Result<GlobSet> {
+pub(crate) fn glob_set(patterns: &[String]) -> Result<GlobSet> {
     let mut builder = GlobSetBuilder::new();
     for pattern in patterns {
         let glob = globset::GlobBuilder::new(pattern)
@@ -106,7 +106,7 @@ pub fn glob_set(patterns: &[String]) -> Result<GlobSet> {
 }
 
 impl TierMap {
-    pub fn tier_of(&self, path: &str) -> Result<(u8, String)> {
+    pub(crate) fn tier_of(&self, path: &str) -> Result<(u8, String)> {
         let mut best: Option<(u8, String)> = None;
         for rule in &self.rule {
             if glob_set(&rule.paths)?.is_match(path) {

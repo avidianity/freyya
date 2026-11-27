@@ -13,7 +13,8 @@ Kit spec: [checks/test-scope.md](https://github.com/avidianity/factory/blob/v0.9
 - Command: `cargo xtask test-scope`.
 - Scope file: `policy/layout.toml`.
   Application tests live in `#[cfg(test)]` modules under `crates/*/src/**` and in `crates/*/tests/**`; check-script tests live in `xtask/**`; see [ADR 0002](../adr/0002-rust-test-layout.md).
-- An application test may not name a tool config or repository file, such as `Cargo.toml` or `lefthook.yml`.
+- An application test may not name a tool config or repository file, such as `Cargo.toml`, `lefthook.yml`, or `CARGO_MANIFEST_PATH`.
+  Every string in a file under `crates/*/tests/` counts, helpers included; in a source file, strings inside `#[test]` functions and `#[cfg(test)]` modules count.
 - The Project has no coverage or mutation tool; the check fails when a coverage config appears.
 - The `xtask` tests run in CI when `xtask/`, `policy/`, or `Cargo.lock` change, outside the application Feedback loops.
 

@@ -32,4 +32,4 @@ A change to this list is Tier 3.
 - A shebang line.
 - Generated files: paths under a `generated/` folder, or files whose first comment, in the first three lines, contains `@generated`.
 
-Freyya publishes no package, so doc comments (`///` and `//!`) are not on the list.
+Freyya publishes no package, so doc comments (`///` and `//!`) and `#[doc = "..."]` attributes are not on the list.

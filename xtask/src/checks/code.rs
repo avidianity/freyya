@@ -3,6 +3,7 @@ use crate::git::{Repo, Revision};
 use crate::policy;
 use crate::rust_source::{self, Comment};
 use anyhow::{Context, Result, bail};
+use std::collections::BTreeSet;
 use std::process::Command;
 
 fn rust_files(repo: &Repo) -> Result<Vec<String>> {
@@ -26,7 +27,7 @@ fn weak_level(value: &toml::Value) -> bool {
     }
 }
 
-pub fn manifest_lint_problems(path: &str, text: &str) -> Vec<String> {
+pub(super) fn manifest_lint_problems(path: &str, text: &str) -> Vec<String> {
     let Ok(manifest) = text.parse::<toml::Table>() else {
         return vec![format!("{path} is not valid TOML.")];
     };
@@ -60,22 +61,79 @@ pub fn manifest_lint_problems(path: &str, text: &str) -> Vec<String> {
     problems
 }
 
-fn rustflags_problems(repo: &Repo) -> Result<Vec<String>> {
-    let path = ".cargo/config.toml";
-    if !repo.path(path).is_file() {
-        return Ok(Vec::new());
-    }
-    let text = repo.read(path)?;
-    let weakening = ["-A", "--cap-lints", "-W", "--allow", "--warn"];
-    Ok(text
-        .lines()
-        .filter(|line| line.contains("rustflags"))
-        .filter(|line| weakening.iter().any(|flag| line.contains(flag)))
-        .map(|_| format!("{path} passes a lint-weakening flag in rustflags"))
-        .collect())
+pub(super) fn is_exact_requirement(requirement: &str) -> bool {
+    let Some(version) = requirement.strip_prefix('=') else {
+        return false;
+    };
+    let core = version.trim().split(['-', '+']).next().unwrap_or_default();
+    let numbers: Vec<&str> = core.split('.').collect();
+    numbers.len() == 3
+        && numbers
+            .iter()
+            .all(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
 }
 
-pub fn no_suppressions(repo: &Repo) -> Result<Failures> {
+const WEAKENING_FLAGS: &[&str] = &[
+    "-A",
+    "--cap-lints",
+    "-W",
+    "--allow",
+    "--warn",
+    "--force-warn",
+];
+
+fn flag_weakens(flag: &str) -> bool {
+    WEAKENING_FLAGS.iter().any(|weak| {
+        flag == *weak
+            || flag.starts_with(&format!("{weak}="))
+            || (weak.len() == 2 && flag.starts_with(weak) && flag.len() > 2)
+    })
+}
+
+fn collect_rustflags(value: &toml::Value, key: Option<&str>, out: &mut Vec<String>) {
+    match value {
+        toml::Value::Table(table) => {
+            for (name, inner) in table {
+                collect_rustflags(inner, Some(name), out);
+            }
+        }
+        toml::Value::Array(items) if key.is_some_and(|k| k.ends_with("rustflags")) => {
+            out.extend(items.iter().filter_map(|i| i.as_str().map(str::to_owned)));
+        }
+        toml::Value::String(text)
+            if key.is_some_and(|k| k.to_lowercase().ends_with("rustflags")) =>
+        {
+            out.extend(text.split_whitespace().map(str::to_owned));
+        }
+        _ => {}
+    }
+}
+
+pub(super) fn config_rustflag_problems(path: &str, text: &str) -> Vec<String> {
+    let Ok(config) = text.parse::<toml::Table>() else {
+        return vec![format!("{path} is not valid TOML")];
+    };
+    let mut flags = Vec::new();
+    collect_rustflags(&toml::Value::Table(config), None, &mut flags);
+    if flags.iter().any(|flag| flag_weakens(flag)) {
+        vec![format!("{path} passes a lint-weakening flag in rustflags")]
+    } else {
+        Vec::new()
+    }
+}
+
+fn rustflags_problems(repo: &Repo) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for path in repo.files()? {
+        let is_config = path.ends_with(".cargo/config.toml") || path.ends_with(".cargo/config");
+        if is_config && !path.starts_with("target/") {
+            problems.extend(config_rustflag_problems(&path, &repo.read(&path)?));
+        }
+    }
+    Ok(problems)
+}
+
+pub(super) fn no_suppressions(repo: &Repo) -> Result<Failures> {
     let approved = policy::suppressions(repo)?.approved;
     let mut failures = Failures::new();
     let manifests = repo
@@ -118,7 +176,7 @@ const COVERAGE_CONFIGS: &[&str] = &[
     ".cargo/mutants.toml",
 ];
 
-pub fn test_scope(repo: &Repo) -> Result<Failures> {
+pub(super) fn test_scope(repo: &Repo) -> Result<Failures> {
     let layout = policy::layout(repo)?.tests;
     let app_source = policy::glob_set(&layout.app_source)?;
     let app_tests = policy::glob_set(&layout.app_tests)?;
@@ -138,7 +196,12 @@ pub fn test_scope(repo: &Repo) -> Result<Failures> {
             continue;
         }
         if in_app {
-            for text in &facts.test_strings {
+            let strings = if app_tests.is_match(&path) {
+                &facts.all_strings
+            } else {
+                &facts.test_strings
+            };
+            for text in strings {
                 if let Some(config) = layout
                     .config_names
                     .iter()
@@ -161,7 +224,7 @@ pub fn test_scope(repo: &Repo) -> Result<Failures> {
     Ok(failures)
 }
 
-pub fn dependency_pinning(repo: &Repo) -> Result<Failures> {
+pub(super) fn dependency_pinning(repo: &Repo) -> Result<Failures> {
     let output = Command::new("cargo")
         .current_dir(&repo.root)
         .args(["metadata", "--format-version", "1", "--locked"])
@@ -200,7 +263,7 @@ pub fn dependency_pinning(repo: &Repo) -> Result<Failures> {
             }
             let name = dependency["name"].as_str().unwrap_or("?");
             let requirement = dependency["req"].as_str().unwrap_or("");
-            let exact = requirement.starts_with('=') && !requirement.contains(',');
+            let exact = is_exact_requirement(requirement);
             if !exact {
                 failures.push(format!(
                     "{name} (in {owner}) is not pinned to an exact version ({requirement}), or the lockfile is stale. Pin it and update the lockfile."
@@ -234,7 +297,7 @@ fn tag_ok(text: &str) -> bool {
     has_ref && !why.trim().is_empty()
 }
 
-pub fn disallowed_comments(comments: &[Comment]) -> Vec<&Comment> {
+pub(super) fn disallowed_comments(comments: &[Comment]) -> Vec<&Comment> {
     comments.iter().filter(|c| !tag_ok(&c.text)).collect()
 }
 
@@ -244,7 +307,7 @@ fn generated_header(comments: &[Comment]) -> bool {
         .is_some_and(|c| c.line <= 3 && c.text.contains("@generated"))
 }
 
-pub fn no_comments(repo: &Repo, args: &Args) -> Result<Failures> {
+pub(super) fn no_comments(repo: &Repo, args: &Args) -> Result<Failures> {
     let Some(base) = args.value("--base") else {
         bail!("no-comments needs --base <rev>");
     };
@@ -260,6 +323,17 @@ pub fn no_comments(repo: &Repo, args: &Args) -> Result<Failures> {
         let comments = rust_source::comments(&source);
         if generated_header(&comments) {
             continue;
+        }
+        let comment_lines: BTreeSet<usize> = comments.iter().map(|c| c.line).collect();
+        let doc_attributes = rust_source::facts(&source)
+            .map(|f| f.doc_attribute_lines)
+            .unwrap_or_default();
+        for line in doc_attributes {
+            if added.contains(&line) && !comment_lines.contains(&line) {
+                failures.push(format!(
+                    "{path}:{line} adds a #[doc] attribute. Freyya publishes no package; put the reason in a name, ADR, test, commit message, or issue; see engineering.md."
+                ));
+            }
         }
         for comment in disallowed_comments(&comments) {
             let span = comment.text.matches('\n').count();
@@ -277,7 +351,10 @@ pub fn no_comments(repo: &Repo, args: &Args) -> Result<Failures> {
 
 #[cfg(test)]
 mod tests {
-    use super::{disallowed_comments, generated_header, manifest_lint_problems, tag_ok};
+    use super::{
+        config_rustflag_problems, disallowed_comments, generated_header, is_exact_requirement,
+        manifest_lint_problems, tag_ok,
+    };
     use crate::rust_source::comments;
 
     #[test]
@@ -326,6 +403,35 @@ mod tests {
             manifest_lint_problems("crates/x/Cargo.toml", missing).len(),
             1
         );
+    }
+
+    #[test]
+    fn exact_requirements_name_all_three_numbers() {
+        assert!(is_exact_requirement("=1.0.105"));
+        assert!(is_exact_requirement("=0.186.0"));
+        assert!(is_exact_requirement("=1.2.3-rc.1"));
+        assert!(!is_exact_requirement("=1"));
+        assert!(!is_exact_requirement("=1.0"));
+        assert!(!is_exact_requirement("^1.0.0"));
+        assert!(!is_exact_requirement("=1.0.0, <2"));
+    }
+
+    #[test]
+    fn rustflags_in_any_form_are_read() {
+        let multi = "[build]\nrustflags = [\n  \"--cap-lints\",\n  \"allow\",\n]\n";
+        assert_eq!(
+            config_rustflag_problems(".cargo/config.toml", multi).len(),
+            1
+        );
+        let target = "[target.x86_64-pc-windows-msvc]\nrustflags = [\"-Adead_code\"]\n";
+        assert_eq!(
+            config_rustflag_problems(".cargo/config.toml", target).len(),
+            1
+        );
+        let env = "[env]\nRUSTFLAGS = \"-A warnings\"\n";
+        assert_eq!(config_rustflag_problems(".cargo/config.toml", env).len(), 1);
+        let alias = "[alias]\nxtask = \"run --quiet --locked --package xtask --\"\n";
+        assert!(config_rustflag_problems(".cargo/config.toml", alias).is_empty());
     }
 
     #[test]
