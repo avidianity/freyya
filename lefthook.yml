@@ -1,0 +1,44 @@
+pre-commit:
+  parallel: true
+  commands:
+    rustfmt:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+    secret-scan:
+      run: gitleaks git --staged --redact --no-banner --ignore-gitleaks-allow
+    no-comments:
+      glob: "*.rs"
+      run: cargo xtask no-comments --base HEAD --head :index
+    no-suppressions:
+      glob: "*.rs"
+      run: cargo xtask no-suppressions
+    test-scope:
+      glob: "*.rs"
+      run: cargo xtask test-scope
+    dependency-pinning:
+      glob: "{Cargo.toml,Cargo.lock,*/Cargo.toml,*/*/Cargo.toml}"
+      run: cargo xtask dependency-pinning
+    agent-entry-links:
+      run: cargo xtask agent-entry-links
+    doc-size:
+      glob: "{*.md,.rules}"
+      run: cargo xtask doc-size
+    doc-index:
+      glob: "{*.md,.rules}"
+      run: cargo xtask doc-index
+    doc-style:
+      glob: "{*.md,.rules}"
+      run: cargo xtask doc-style
+    markdownlint:
+      glob: "*.md"
+      exclude: ".agents/**"
+      run: npx --yes markdownlint-cli2@0.24.2 {staged_files}
+    doc-links:
+      glob: "{*.md,.rules}"
+      exclude: ".agents/**"
+      run: lychee --config lychee.toml {staged_files}
+
+commit-msg:
+  commands:
+    commit-message:
+      run: cargo xtask commit-message --file {1}

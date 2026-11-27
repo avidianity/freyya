@@ -1,0 +1,56 @@
+name: policy
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Check out the protected base revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch the pull request head as data only
+        run: git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/remotes/pr/head"
+      - name: Install the base toolchain
+        run: rustup show active-toolchain
+      - name: risk-tier and test-oracle-guard
+        id: tier
+        run: cargo xtask risk-tier --base "$BASE_SHA" --head refs/remotes/pr/head --github-output "$GITHUB_OUTPUT"
+      - name: Apply the tier label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TIER: ${{ steps.tier.outputs.tier }}
+        run: |
+          for n in 0 1 2 3 4; do
+            if [ "$n" != "$TIER" ]; then
+              gh pr edit "$PR_NUMBER" -R "$REPO" --remove-label "tier-$n" > /dev/null 2>&1 || true
+            fi
+          done
+          gh pr edit "$PR_NUMBER" -R "$REPO" --add-label "tier-$TIER"
+      - name: Save the pull request body as data
+        run: jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" > "$RUNNER_TEMP/body.md"
+      - name: evidence-bundle
+        env:
+          TIER: ${{ steps.tier.outputs.tier }}
+        run: cargo xtask evidence-bundle --body-file "$RUNNER_TEMP/body.md" --head-sha "$HEAD_SHA" --tier "$TIER"
+      - name: behavior-has-test
+        run: cargo xtask behavior-has-test --base "$BASE_SHA" --head refs/remotes/pr/head --body-file "$RUNNER_TEMP/body.md"
