@@ -167,6 +167,46 @@ pub(super) fn no_suppressions(repo: &Repo) -> Result<Failures> {
     Ok(failures)
 }
 
+pub(crate) fn root_pub_items(source: &str) -> Result<Vec<String>> {
+    let file = syn::parse_file(source).context("parsing Rust source")?;
+    Ok(file
+        .items
+        .iter()
+        .filter_map(|item| {
+            let (vis, name) = match item {
+                syn::Item::Fn(i) => (&i.vis, i.sig.ident.to_string()),
+                syn::Item::Struct(i) => (&i.vis, i.ident.to_string()),
+                syn::Item::Enum(i) => (&i.vis, i.ident.to_string()),
+                syn::Item::Const(i) => (&i.vis, i.ident.to_string()),
+                syn::Item::Static(i) => (&i.vis, i.ident.to_string()),
+                syn::Item::Type(i) => (&i.vis, i.ident.to_string()),
+                syn::Item::Trait(i) => (&i.vis, i.ident.to_string()),
+                syn::Item::Union(i) => (&i.vis, i.ident.to_string()),
+                syn::Item::Mod(i) => (&i.vis, i.ident.to_string()),
+                _ => return None,
+            };
+            matches!(vis, syn::Visibility::Public(_)).then_some(name)
+        })
+        .collect())
+}
+
+fn is_binary_root(path: &str) -> bool {
+    let in_crate = path.starts_with("crates/") || path.starts_with("xtask/");
+    in_crate && (path.ends_with("/src/main.rs") || path.contains("/src/bin/"))
+}
+
+pub(crate) fn no_dead_code(repo: &Repo) -> Result<Failures> {
+    let mut failures = Failures::new();
+    for path in rust_files(repo)?.into_iter().filter(|p| is_binary_root(p)) {
+        for name in root_pub_items(&repo.read(&path)?).with_context(|| format!("in {path}"))? {
+            failures.push(format!(
+                "{name} in {path} is pub at the root of a binary, where the compiler cannot report it as dead. Drop pub; nothing outside the binary can use it."
+            ));
+        }
+    }
+    Ok(failures)
+}
+
 const COVERAGE_CONFIGS: &[&str] = &[
     "tarpaulin.toml",
     ".tarpaulin.toml",
@@ -353,7 +393,7 @@ pub(super) fn no_comments(repo: &Repo, args: &Args) -> Result<Failures> {
 mod tests {
     use super::{
         config_rustflag_problems, disallowed_comments, generated_header, is_exact_requirement,
-        manifest_lint_problems, tag_ok,
+        manifest_lint_problems, root_pub_items, tag_ok,
     };
     use crate::rust_source::comments;
 
@@ -403,6 +443,14 @@ mod tests {
             manifest_lint_problems("crates/x/Cargo.toml", missing).len(),
             1
         );
+    }
+
+    #[test]
+    fn pub_at_a_binary_root_is_reported() {
+        let found =
+            root_pub_items("pub fn unused_pub() {}\nfn main() {}\npub(crate) fn scoped() {}\n")
+                .unwrap_or_default();
+        assert_eq!(found, vec!["unused_pub".to_owned()]);
     }
 
     #[test]

@@ -16,10 +16,12 @@ Kit spec: [checks/no-dead-code.md](https://github.com/avidianity/factory/blob/v0
 - The compiler: `[workspace.lints]` in `Cargo.toml` sets `dead_code`, `unused`, and all warnings to deny.
 - Command: `cargo clippy --workspace --locked` without test targets, so a symbol that only tests use is dead.
 - `unreachable_pub` is denied too: freyya publishes no package, so a `pub` item must be `pub(crate)`, and the compiler then reports it when nothing uses it.
+- Command: `cargo xtask no-dead-code` rejects a `pub` item at the root of a binary (`src/main.rs` or `src/bin/`), where neither lint can see it.
 - Open: unused dependencies and orphan files that no module declares have no tool yet.
+
+Runs in: CI.
 
 ## Known limits
 
 - Code under a `cfg` that never holds, such as `#[cfg(any())]`, is invisible to the compiler.
-
-Runs in: CI.
+- An unused `pub` item of a library crate that the workspace shares is part of that crate's API, so the compiler does not report it; no tool covers this yet.

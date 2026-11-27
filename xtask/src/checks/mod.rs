@@ -44,6 +44,7 @@ const REPO_CHECKS: &[&str] = &[
     "no-suppressions",
     "test-scope",
     "dependency-pinning",
+    "no-dead-code",
 ];
 
 const USAGE: &str = "usage: cargo xtask <check> [options]
@@ -51,7 +52,7 @@ const USAGE: &str = "usage: cargo xtask <check> [options]
 whole-repository checks:
   agent-entry-links | skills-link | skills-in-owner-guide | doc-size | doc-index | doc-links
   no-placeholders | doc-style | record-numbers | no-suppressions | test-scope
-  dependency-pinning
+  dependency-pinning | no-dead-code
   repo-checks                  run every whole-repository check (the merged-result check)
 
 change checks:
@@ -78,6 +79,7 @@ fn run_one(repo: &Repo, name: &str, args: &Args) -> Result<Failures> {
         "no-suppressions" => code::no_suppressions(repo),
         "test-scope" => code::test_scope(repo),
         "dependency-pinning" => code::dependency_pinning(repo),
+        "no-dead-code" => code::no_dead_code(repo),
         "no-comments" => code::no_comments(repo, args),
         "commit-message" => commits::commit_message(repo, args),
         "risk-tier" => pull_request::risk_tier(repo, args),

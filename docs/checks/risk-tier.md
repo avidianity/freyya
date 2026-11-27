@@ -33,6 +33,10 @@ Kit spec: [checks/risk-tier.md](https://github.com/avidianity/factory/blob/v0.9.
 - Changed paths come from `git diff -z`, so a path with quotes or tabs still matches the tier map.
 - The tier map makes every checker config Tier 3, wherever it sits: `.cargo/`, `rustfmt.toml`, `clippy.toml`, `rust-toolchain*`, `.markdownlint*`, `lefthook*.yml`, `.gitleaks.toml`, `.gitleaksignore`, `.gitattributes`, and `.gitignore`.
 
+Runs in: CI, in `.github/workflows/policy.yml`, which applies the `tier-<N>` label.
+Agents also run it locally to read the Expected Tier of a change before they open a pull request.
+The active Autonomy gate is `policy/gate.toml` (Gate 0).
+
 ## Known limits
 
 These are heuristics on the diff, so they miss intent that the syntax hides:
@@ -44,7 +48,3 @@ These are heuristics on the diff, so they miss intent that the syntax hides:
 - crates that the pull request adds, because the reverse-dependency graph comes from the base revision.
 
 `blast-radius` and the Independent reviewer cover semantic impact from Tier 2.
-
-Runs in: CI, in `.github/workflows/policy.yml`, which applies the `tier-<N>` label.
-Agents also run it locally to read the Expected Tier of a change before they open a pull request.
-The active Autonomy gate is `policy/gate.toml` (Gate 0).
