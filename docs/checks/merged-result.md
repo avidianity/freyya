@@ -8,7 +8,7 @@ Kit spec: [checks/merged-result.md](https://github.com/avidianity/factory/blob/v
 ## Implemented by
 
 - Command: `cargo xtask repo-checks`.
-  It runs every whole-repository check: `agent-entry-links`, `skills-link`, `skills-in-owner-guide`, `doc-size`, `doc-index`, `no-placeholders`, `doc-style`, `record-numbers`, `no-suppressions`, `test-scope`, and `dependency-pinning`.
+  It runs every whole-repository check: `agent-entry-links`, `skills-link`, `skills-in-owner-guide`, `doc-size`, `doc-index`, `doc-links`, `no-placeholders`, `doc-style`, `record-numbers`, `no-suppressions`, `test-scope`, and `dependency-pinning`.
 - Follow the steps in [git.md](../agents/git.md#mandatory-check-the-merged-result-before-a-merge).
 
 Runs in: the merge step of a request to land, and in CI.

@@ -2,7 +2,7 @@
 app_source = ["crates/*/src/**"]
 app_tests = ["crates/*/tests/**"]
 script_tests = ["xtask/**"]
-config_names = ["Cargo.toml", "Cargo.lock", "lefthook.yml", "rust-toolchain.toml", "rustfmt.toml", "clippy.toml", ".markdownlint-cli2.jsonc", "lychee.toml", ".gitleaks.toml", ".rules", "policy/", ".github/", ".cargo/"]
+config_names = ["Cargo.toml", "Cargo.lock", "lefthook.yml", "rust-toolchain.toml", "rustfmt.toml", "clippy.toml", ".markdownlint-cli2.jsonc", ".gitleaks.toml", ".rules", "policy/", ".github/", ".cargo/"]
 
 [agents]
 entry_files = ["CLAUDE.md", "AGENTS.md"]

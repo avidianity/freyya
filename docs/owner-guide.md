@@ -187,7 +187,7 @@ The skills above load these helpers themselves, so you never start them:
 
 - On a new machine, restore the Project's skills with `npx skills@1.9.0 experimental_install --frozen-lockfile --agent codex`.
 - On a new machine, turn on the Git hooks once with `lefthook install`.
-  The tools the hooks call are Rust (through `rustup`), Node.js, `lefthook`, `gitleaks`, and `lychee`.
+  The tools the hooks call are Rust (through `rustup`), Node.js, `lefthook`, and `gitleaks`.
 - `arena` and `interrogate` start agents on several models.
   To choose those models, run pstack's `setup-pstack` skill once in your own agent setup.
   Without it, they use their built-in defaults.

@@ -9,7 +9,7 @@ Kit spec: [checks/no-hook-bypass.md](https://github.com/avidianity/factory/blob/
 ## Implemented by
 
 - CI parity: `.github/workflows/ci.yml` runs every command in `lefthook.yml` on the whole pull request:
-  `rustfmt`, `gitleaks`, `no-comments`, `no-suppressions`, `test-scope`, `dependency-pinning`, `agent-entry-links`, `doc-size`, `doc-index`, `doc-style`, `markdownlint-cli2`, `lychee`, and `commit-message`.
+  `rustfmt`, `gitleaks`, `no-comments`, `no-suppressions`, `test-scope`, `dependency-pinning`, `agent-entry-links`, `doc-size`, `doc-index`, `doc-style`, `doc-links`, `markdownlint-cli2`, and `commit-message`.
 - Claude Code guard: `.claude/settings.json` runs `cargo xtask guard` before every Bash and PowerShell command.
   It blocks `--no-verify`, `git commit -n`, `core.hooksPath` overrides, `LEFTHOOK` skip variables, and edits under `.git/hooks`.
 - Codex and Antigravity: no command guard yet; CI parity is the backstop.

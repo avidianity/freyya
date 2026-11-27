@@ -15,5 +15,4 @@
 /rust-toolchain.toml @avidianity
 /.cargo/ @avidianity
 /.markdownlint-cli2.jsonc @avidianity
-/lychee.toml @avidianity
 /.gitattributes @avidianity

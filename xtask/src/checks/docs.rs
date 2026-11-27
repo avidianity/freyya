@@ -118,6 +118,60 @@ pub fn doc_index(repo: &Repo) -> Result<Failures> {
         .collect())
 }
 
+fn link_scope(path: &str) -> bool {
+    path == ".rules" || is_active_doc(path)
+}
+
+pub fn doc_links(repo: &Repo) -> Result<Failures> {
+    let files: BTreeSet<String> = repo.files()?.into_iter().collect();
+    let mut anchors: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut failures = Failures::new();
+    for path in files.iter().filter(|p| link_scope(p)) {
+        let content = repo.read(path)?;
+        for link in markdown::links(&content) {
+            let fragment = link.target.split_once('#').map(|(_, f)| f.to_owned());
+            let target = if link.target.starts_with('#') {
+                Some(path.clone())
+            } else {
+                normalize(Path::new(path), &link.target)
+            };
+            let Some(target) = target else {
+                continue;
+            };
+            let is_dir = repo.path(&target).is_dir();
+            if !files.contains(&target) && !is_dir {
+                failures.push(format!(
+                    "{path}:{} links to {target}, which does not exist. Fix the link or restore the target.",
+                    link.line
+                ));
+                continue;
+            }
+            let Some(fragment) = fragment.filter(|f| !f.is_empty()) else {
+                continue;
+            };
+            if !target.ends_with(".md") {
+                continue;
+            }
+            if !anchors.contains_key(&target) {
+                anchors.insert(
+                    target.clone(),
+                    markdown::heading_anchors(&repo.read(&target)?),
+                );
+            }
+            let known = anchors
+                .get(&target)
+                .is_some_and(|list| list.contains(&fragment));
+            if !known {
+                failures.push(format!(
+                    "{path}:{} links to {target}#{fragment}, which does not exist. Fix the link or restore the target.",
+                    link.line
+                ));
+            }
+        }
+    }
+    Ok(failures)
+}
+
 fn placeholder_scope(path: &str) -> bool {
     path == ".rules"
         || path == "docs/owner-guide.md"

@@ -35,8 +35,7 @@ pre-commit:
       run: npx --yes markdownlint-cli2@0.24.2 {staged_files}
     doc-links:
       glob: "{*.md,.rules}"
-      exclude: ".agents/**"
-      run: lychee --config lychee.toml {staged_files}
+      run: cargo xtask doc-links
 
 commit-msg:
   commands:

@@ -37,6 +37,7 @@ const REPO_CHECKS: &[&str] = &[
     "skills-in-owner-guide",
     "doc-size",
     "doc-index",
+    "doc-links",
     "no-placeholders",
     "doc-style",
     "record-numbers",
@@ -48,7 +49,7 @@ const REPO_CHECKS: &[&str] = &[
 const USAGE: &str = "usage: cargo xtask <check> [options]
 
 whole-repository checks:
-  agent-entry-links | skills-link | skills-in-owner-guide | doc-size | doc-index
+  agent-entry-links | skills-link | skills-in-owner-guide | doc-size | doc-index | doc-links
   no-placeholders | doc-style | record-numbers | no-suppressions | test-scope
   dependency-pinning
   repo-checks                  run every whole-repository check (the merged-result check)
@@ -70,6 +71,7 @@ fn run_one(repo: &Repo, name: &str, args: &Args) -> Result<Failures> {
         "skills-in-owner-guide" => agents::skills_in_owner_guide(repo),
         "doc-size" => docs::doc_size(repo),
         "doc-index" => docs::doc_index(repo),
+        "doc-links" => docs::doc_links(repo),
         "no-placeholders" => docs::no_placeholders(repo),
         "doc-style" => docs::doc_style(repo),
         "record-numbers" => docs::record_numbers(repo),

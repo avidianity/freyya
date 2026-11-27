@@ -2,6 +2,7 @@ use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 pub struct Link {
     pub target: String,
+    pub line: usize,
 }
 
 pub struct Placeholder {
@@ -22,14 +23,68 @@ fn parser(content: &str) -> Parser<'_> {
 
 pub fn links(content: &str) -> Vec<Link> {
     let mut found = Vec::new();
-    for event in parser(content) {
+    for (event, range) in parser(content).into_offset_iter() {
         if let Event::Start(Tag::Link { dest_url, .. } | Tag::Image { dest_url, .. }) = event {
             found.push(Link {
                 target: dest_url.to_string(),
+                line: line_of(content, range.start),
             });
         }
     }
     found
+}
+
+pub fn heading_anchors(content: &str) -> Vec<String> {
+    let mut anchors: Vec<String> = Vec::new();
+    let mut current: Option<String> = None;
+    for event in parser(content) {
+        match event {
+            Event::Start(Tag::Heading { id, .. }) => {
+                if let Some(id) = id {
+                    anchors.push(id.to_string());
+                }
+                current = Some(String::new());
+            }
+            Event::End(TagEnd::Heading(_)) => {
+                if let Some(text) = current.take() {
+                    let base = slug(&text);
+                    let seen = anchors
+                        .iter()
+                        .filter(|a| {
+                            **a == base
+                                || a.strip_prefix(&format!("{base}-"))
+                                    .is_some_and(|n| n.chars().all(|c| c.is_ascii_digit()))
+                        })
+                        .count();
+                    anchors.push(if seen == 0 {
+                        base
+                    } else {
+                        format!("{base}-{seen}")
+                    });
+                }
+            }
+            Event::Text(text) | Event::Code(text) => {
+                if let Some(heading) = current.as_mut() {
+                    heading.push_str(&text);
+                }
+            }
+            _ => {}
+        }
+    }
+    anchors
+}
+
+pub fn slug(heading: &str) -> String {
+    heading
+        .trim()
+        .to_lowercase()
+        .chars()
+        .filter_map(|c| match c {
+            ' ' => Some('-'),
+            c if c.is_alphanumeric() || c == '-' || c == '_' => Some(c),
+            _ => None,
+        })
+        .collect()
 }
 
 fn scan_placeholders(text: &str, line: usize, found: &mut Vec<Placeholder>) {
@@ -81,7 +136,7 @@ pub fn placeholders(content: &str) -> Vec<Placeholder> {
 
 #[cfg(test)]
 mod tests {
-    use super::{links, placeholders};
+    use super::{heading_anchors, links, placeholders, slug};
 
     #[test]
     fn finds_placeholder_in_text_and_inline_code() {
@@ -107,5 +162,17 @@ mod tests {
         let doc = "# T\n\nSee [a](./a.md#x) and\n[b](b.md).\n";
         let found: Vec<String> = links(doc).into_iter().map(|l| l.target).collect();
         assert_eq!(found, vec!["./a.md#x".to_owned(), "b.md".to_owned()]);
+    }
+
+    #[test]
+    fn slugs_follow_github_rules() {
+        assert_eq!(slug("Mandatory: Review modes"), "mandatory-review-modes");
+        assert_eq!(slug("Gate 0: assisted"), "gate-0-assisted");
+    }
+
+    #[test]
+    fn repeated_headings_get_numbered_anchors() {
+        let doc = "# Intro\n\n## Steps\n\n## Steps\n";
+        assert_eq!(heading_anchors(doc), vec!["intro", "steps", "steps-1"]);
     }
 }

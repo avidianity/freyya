@@ -89,7 +89,7 @@ pub fn test_scope(repo: &Repo) -> Result<Failures> {
 pub fn dependency_pinning(repo: &Repo) -> Result<Failures> {
     let output = Command::new("cargo")
         .current_dir(&repo.root)
-        .args(["metadata", "--format-version", "1", "--no-deps", "--locked"])
+        .args(["metadata", "--format-version", "1", "--locked"])
         .output()
         .context("running cargo metadata")?;
     if !output.status.success() {
@@ -99,9 +99,21 @@ pub fn dependency_pinning(repo: &Repo) -> Result<Failures> {
         )]);
     }
     let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let members: Vec<String> = metadata["workspace_members"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|id| id.as_str().map(str::to_owned))
+        .collect();
     let mut failures = Failures::new();
     let packages = metadata["packages"].as_array().cloned().unwrap_or_default();
-    for package in &packages {
+    let workspace_packages = packages.iter().filter(|p| {
+        p["id"]
+            .as_str()
+            .is_some_and(|id| members.iter().any(|m| m == id))
+    });
+    for package in workspace_packages {
         let owner = package["name"].as_str().unwrap_or("?");
         for dependency in package["dependencies"]
             .as_array()

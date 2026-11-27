@@ -13,7 +13,7 @@ paths = [".rules", "CLAUDE.md", "AGENTS.md", "docs/agents/**", "docs/checks/**",
 [[rule]]
 tier = 3
 reason = "CI, checks, and policy"
-paths = [".github/**", "xtask/**", "policy/**", "lefthook.yml", ".cargo/**", "Cargo.toml", "rust-toolchain.toml", "rustfmt.toml", "clippy.toml", ".markdownlint-cli2.jsonc", "lychee.toml", ".gitleaks.toml", ".gitattributes"]
+paths = [".github/**", "xtask/**", "policy/**", "lefthook.yml", ".cargo/**", "Cargo.toml", "rust-toolchain.toml", "rustfmt.toml", "clippy.toml", ".markdownlint-cli2.jsonc", ".gitleaks.toml", ".gitattributes"]
 
 [[rule]]
 tier = 3
