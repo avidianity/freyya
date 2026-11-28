@@ -9,6 +9,7 @@ pub mod goods_market;
 mod money;
 mod observation;
 mod rakaly;
+mod save;
 mod save_reader;
 mod snapshot;
 
@@ -40,7 +41,7 @@ pub fn read_save_timed(save: &[u8], rakaly: &Rakaly) -> Result<(Snapshot, ReadTi
     let checked = Instant::now();
     let melted = rakaly.melt(save)?;
     let decoded = Instant::now();
-    let snapshot = gamestate::Gamestate::parse(&melted)?.into_snapshot()?;
+    let snapshot = gamestate::into_snapshot(crate::save::SaveGamestate::parse(&melted)?)?;
     let parsed = Instant::now();
     let times = ReadTimes {
         check: checked - started,

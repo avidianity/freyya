@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::observation::{Observation, Unit};
+use crate::save::SaveQueue;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Construction {
@@ -17,25 +18,10 @@ pub struct QueuedConstruction {
     pub construction_speed: Observation,
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub(crate) struct SavedQueue {
-    #[serde(default)]
-    construction_elements: Vec<SavedElement>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SavedElement {
-    #[serde(rename = "type")]
-    building: String,
-    state: u32,
-    construction_left: Option<f64>,
-    base_construction_speed: Option<f64>,
-}
-
 pub(crate) fn construction(
     country: u32,
-    government_queue: Option<&SavedQueue>,
-    private_queue: Option<&SavedQueue>,
+    government_queue: Option<&SaveQueue>,
+    private_queue: Option<&SaveQueue>,
 ) -> Construction {
     Construction {
         construction_in_use: construction_in_use(country, [government_queue, private_queue]),
@@ -44,7 +30,7 @@ pub(crate) fn construction(
     }
 }
 
-fn construction_in_use(country: u32, queues: [Option<&SavedQueue>; 2]) -> Observation {
+fn construction_in_use(country: u32, queues: [Option<&SaveQueue>; 2]) -> Observation {
     let speeds: Vec<f64> = queues
         .into_iter()
         .flatten()
@@ -61,7 +47,7 @@ fn construction_in_use(country: u32, queues: [Option<&SavedQueue>; 2]) -> Observ
     )
 }
 
-fn queue(country: u32, name: &str, saved: Option<&SavedQueue>) -> Vec<QueuedConstruction> {
+fn queue(country: u32, name: &str, saved: Option<&SaveQueue>) -> Vec<QueuedConstruction> {
     let Some(saved) = saved else {
         return Vec::new();
     };

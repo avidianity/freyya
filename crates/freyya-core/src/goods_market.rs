@@ -1,10 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-use crate::buildings_jobs::{Database, SaveBuilding, SaveState};
-use crate::money::Budget;
 use crate::observation::{Observation, Unit};
+use crate::save::{Database, SaveBudget, SaveBuilding, SaveGoodAmounts, SaveMarket, SaveState};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct GoodsMarket {
@@ -24,27 +23,11 @@ pub struct MarketGood {
     pub net_exports: Observation,
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub(crate) struct GoodAmounts {
-    #[serde(default)]
-    goods: HashMap<u16, GoodAmount>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GoodAmount {
-    value: f64,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct SaveMarket {
-    owner: u32,
-}
-
 pub(crate) struct MarketCountry<'a> {
     pub(crate) id: u32,
     pub(crate) tag: Option<&'a str>,
     pub(crate) market: Option<u32>,
-    pub(crate) budget: Option<&'a Budget>,
+    pub(crate) budget: Option<&'a SaveBudget>,
 }
 
 pub(crate) struct MarketSections<'a> {
@@ -154,7 +137,7 @@ fn building_orders(
     orders
 }
 
-fn add_amounts(totals: &mut HashMap<u16, f64>, amounts: Option<&GoodAmounts>) {
+fn add_amounts(totals: &mut HashMap<u16, f64>, amounts: Option<&SaveGoodAmounts>) {
     for (good, amount) in amounts.into_iter().flat_map(|amounts| &amounts.goods) {
         *totals.entry(*good).or_default() += amount.value;
     }
@@ -171,7 +154,7 @@ fn building_flow(good: u16, market: u32, field: &str, totals: &HashMap<u16, f64>
     )
 }
 
-fn price(good: u16, owner: Option<u32>, prices: Option<&GoodAmounts>) -> Observation {
+fn price(good: u16, owner: Option<u32>, prices: Option<&SaveGoodAmounts>) -> Observation {
     let Some(owner) = owner else {
         return Observation::missing(
             "the Save names no owner for the player's market",

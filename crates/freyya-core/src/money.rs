@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-use crate::goods_market::GoodAmounts;
 use crate::observation::{Observation, Unit};
+use crate::save::SaveBudget;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Money {
@@ -11,23 +11,9 @@ pub struct Money {
     pub debt: Observation,
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub(crate) struct Budget {
-    #[serde(default)]
-    money: Option<f64>,
-    #[serde(default)]
-    weekly_income: Vec<f64>,
-    #[serde(default)]
-    weekly_expenses: Vec<f64>,
-    #[serde(default)]
-    principal: Option<f64>,
-    #[serde(default)]
-    pub(crate) current_price_report: Option<GoodAmounts>,
-}
-
 impl Money {
-    pub(crate) fn from_budget(country_id: u32, budget: Option<&Budget>) -> Self {
-        let empty = Budget::default();
+    pub(crate) fn from_budget(country_id: u32, budget: Option<&SaveBudget>) -> Self {
+        let empty = SaveBudget::default();
         let budget = budget.unwrap_or(&empty);
         let source = |field: &str| format!("country_manager.database.{country_id}.budget.{field}");
         Money {

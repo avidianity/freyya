@@ -38,10 +38,7 @@ fn read_save_args(mut args: impl Iterator<Item = String>) -> Result<Command, Str
     let mut game = None;
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--rakaly" => {
-                let path = args.next().ok_or("--rakaly needs a path")?;
-                rakaly = Rakaly::at(path);
-            }
+            "--rakaly" => rakaly = rakaly_arg(&mut args)?,
             "--game" => game = Some(game_folder_arg(&mut args)?),
             _ if save.is_none() => save = Some(PathBuf::from(arg)),
             _ => return Err(format!("unexpected argument {arg:?}")),
@@ -56,10 +53,7 @@ fn measure_save_args(mut args: impl Iterator<Item = String>) -> Result<Command, 
     let mut rakaly = Rakaly::on_path();
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--rakaly" => {
-                let path = args.next().ok_or("--rakaly needs a path")?;
-                rakaly = Rakaly::at(path);
-            }
+            "--rakaly" => rakaly = rakaly_arg(&mut args)?,
             _ => saves.push(PathBuf::from(arg)),
         }
     }
@@ -78,6 +72,12 @@ fn check_game_files_args(mut args: impl Iterator<Item = String>) -> Result<Comma
         }
     }
     Ok(Command::CheckGameFiles { game })
+}
+
+fn rakaly_arg(args: &mut impl Iterator<Item = String>) -> Result<Rakaly, String> {
+    args.next()
+        .map(Rakaly::at)
+        .ok_or_else(|| "--rakaly needs a path".to_owned())
 }
 
 fn game_folder_arg(args: &mut impl Iterator<Item = String>) -> Result<PathBuf, String> {

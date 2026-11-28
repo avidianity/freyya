@@ -1,13 +1,9 @@
 use std::collections::HashMap;
-use std::fmt;
-use std::marker::PhantomData;
 
-use serde::de::value::MapAccessDeserializer;
-use serde::de::{self, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::Serialize;
 
-use crate::goods_market::GoodAmounts;
 use crate::observation::{Observation, Unit};
+use crate::save::{Database, SaveBuilding, SavePop, SavePopStatistics, SaveState};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BuildingsAndJobs {
@@ -40,94 +36,8 @@ pub struct Building {
     pub employees: Observation<u64>,
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct Database<T> {
-    database: HashMap<u32, MaybeEntry<T>>,
-}
-
-#[derive(Debug)]
-struct MaybeEntry<T>(Option<T>);
-
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for MaybeEntry<T> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_any(MaybeEntryVisitor(PhantomData))
-    }
-}
-
-struct MaybeEntryVisitor<T>(PhantomData<T>);
-
-impl<'de, T: Deserialize<'de>> Visitor<'de> for MaybeEntryVisitor<T> {
-    type Value = MaybeEntry<T>;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("an entry or none")
-    }
-
-    fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
-        match value {
-            "none" => Ok(MaybeEntry(None)),
-            other => Err(E::invalid_value(de::Unexpected::Str(other), &self)),
-        }
-    }
-
-    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-        T::deserialize(MapAccessDeserializer::new(map)).map(|entry| MaybeEntry(Some(entry)))
-    }
-}
-
-impl<T> Default for Database<T> {
-    fn default() -> Self {
-        Self {
-            database: HashMap::new(),
-        }
-    }
-}
-
-impl<T> Database<T> {
-    pub(crate) fn entries(&self) -> impl Iterator<Item = (u32, &T)> {
-        self.database
-            .iter()
-            .filter_map(|(id, entry)| entry.0.as_ref().map(|entry| (*id, entry)))
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct SaveState {
-    pub(crate) country: Option<u32>,
-    region: String,
-    #[serde(default)]
-    pub(crate) trade: Option<GoodAmounts>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct SaveBuilding {
-    building: String,
-    pub(crate) state: u32,
-    levels: Option<u32>,
-    production_methods: Option<Vec<String>>,
-    staffing: Option<f64>,
-    #[serde(default)]
-    pub(crate) input_goods: Option<GoodAmounts>,
-    #[serde(default)]
-    pub(crate) output_goods: Option<GoodAmounts>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct SavePop {
-    workforce: Option<u64>,
-    workplace: Option<u32>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct SavePopStatistics {
-    population_salaried_workforce: Option<f64>,
-    population_subsisting_workforce: Option<f64>,
-    population_unemployed_workforce: Option<f64>,
-    vacancies_new_culture: Option<f64>,
-}
-
 #[derive(Clone, Copy)]
-enum SavedAs {
+enum StoredAs {
     People,
     HundredThousandPeople,
 }
@@ -170,20 +80,20 @@ pub(crate) fn buildings_and_jobs(
 }
 
 fn observe_jobs(country: u32, statistics: Option<&SavePopStatistics>) -> Jobs {
-    let people = |field: &str, read: fn(&SavePopStatistics) -> Option<f64>, saved_as: SavedAs| {
+    let people = |field: &str, read: fn(&SavePopStatistics) -> Option<f64>, saved_as: StoredAs| {
         let source = format!("country_manager.database.{country}.pop_statistics.{field}");
         Observation::of(
             statistics
                 .and_then(read)
                 .map(|value| match saved_as {
-                    SavedAs::People => value,
-                    SavedAs::HundredThousandPeople => value * 100_000.0,
+                    StoredAs::People => value,
+                    StoredAs::HundredThousandPeople => value * 100_000.0,
                 })
                 .map(|people| people.round() as u64),
             Unit::People,
             match saved_as {
-                SavedAs::People => source,
-                SavedAs::HundredThousandPeople => format!("{source} x 100000"),
+                StoredAs::People => source,
+                StoredAs::HundredThousandPeople => format!("{source} x 100000"),
             },
         )
     };
@@ -191,22 +101,22 @@ fn observe_jobs(country: u32, statistics: Option<&SavePopStatistics>) -> Jobs {
         salaried_workforce: people(
             "population_salaried_workforce",
             |statistics| statistics.population_salaried_workforce,
-            SavedAs::People,
+            StoredAs::People,
         ),
         subsisting_workforce: people(
             "population_subsisting_workforce",
             |statistics| statistics.population_subsisting_workforce,
-            SavedAs::HundredThousandPeople,
+            StoredAs::HundredThousandPeople,
         ),
         unemployed_workforce: people(
             "population_unemployed_workforce",
             |statistics| statistics.population_unemployed_workforce,
-            SavedAs::People,
+            StoredAs::People,
         ),
         vacancies: people(
             "vacancies_new_culture",
             |statistics| statistics.vacancies_new_culture,
-            SavedAs::HundredThousandPeople,
+            StoredAs::HundredThousandPeople,
         ),
     }
 }
