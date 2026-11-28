@@ -45,6 +45,10 @@ fn print_save(path: &Path, rakaly: &Rakaly, game: Option<&Path>) -> ExitCode {
             if let Some(catalog) = &catalog {
                 print_catalog_version(catalog, &snapshot.game_version);
             }
+            println!("Treasury:       {}", snapshot.money.treasury);
+            println!("Income:         {}", snapshot.money.weekly_income);
+            println!("Expenses:       {}", snapshot.money.weekly_expenses);
+            println!("Debt:           {}", snapshot.money.debt);
             ExitCode::SUCCESS
         }
         Err(refusal) => {
