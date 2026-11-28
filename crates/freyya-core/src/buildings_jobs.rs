@@ -9,6 +9,15 @@ use serde::{Deserialize, Deserializer};
 #[derive(Debug, Clone, PartialEq)]
 pub struct BuildingsAndJobs {
     pub states: Vec<StateBuildings>,
+    pub jobs: Jobs,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Jobs {
+    pub salaried_workforce: Observation<u64>,
+    pub subsisting_workforce: Observation<u64>,
+    pub unemployed_workforce: Observation<u64>,
+    pub vacancies: Observation<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -126,11 +135,26 @@ pub(crate) struct SavePop {
     workplace: Option<u32>,
 }
 
+#[derive(Debug, Deserialize)]
+pub(crate) struct SavePopStatistics {
+    population_salaried_workforce: Option<f64>,
+    population_subsisting_workforce: Option<f64>,
+    population_unemployed_workforce: Option<f64>,
+    vacancies_new_culture: Option<f64>,
+}
+
+#[derive(Clone, Copy)]
+enum SavedAs {
+    People,
+    HundredThousandPeople,
+}
+
 pub(crate) fn buildings_and_jobs(
     player_country: u32,
     states: &Database<SaveState>,
     buildings: &Database<SaveBuilding>,
     pops: &Database<SavePop>,
+    pop_statistics: Option<&SavePopStatistics>,
 ) -> BuildingsAndJobs {
     let employees = employees_by_workplace(pops);
     let mut player_states: Vec<StateBuildings> = states
@@ -158,6 +182,49 @@ pub(crate) fn buildings_and_jobs(
     }
     BuildingsAndJobs {
         states: player_states,
+        jobs: observe_jobs(player_country, pop_statistics),
+    }
+}
+
+fn observe_jobs(country: u32, statistics: Option<&SavePopStatistics>) -> Jobs {
+    let people = |field: &str, read: fn(&SavePopStatistics) -> Option<f64>, saved_as: SavedAs| {
+        let source = format!("country_manager.database.{country}.pop_statistics.{field}");
+        Observation {
+            value: statistics
+                .and_then(read)
+                .map(|value| match saved_as {
+                    SavedAs::People => value,
+                    SavedAs::HundredThousandPeople => value * 100_000.0,
+                })
+                .map(|people| people.round() as u64),
+            unit: Unit::People,
+            source: match saved_as {
+                SavedAs::People => source,
+                SavedAs::HundredThousandPeople => format!("{source} x 100000"),
+            },
+        }
+    };
+    Jobs {
+        salaried_workforce: people(
+            "population_salaried_workforce",
+            |statistics| statistics.population_salaried_workforce,
+            SavedAs::People,
+        ),
+        subsisting_workforce: people(
+            "population_subsisting_workforce",
+            |statistics| statistics.population_subsisting_workforce,
+            SavedAs::HundredThousandPeople,
+        ),
+        unemployed_workforce: people(
+            "population_unemployed_workforce",
+            |statistics| statistics.population_unemployed_workforce,
+            SavedAs::People,
+        ),
+        vacancies: people(
+            "vacancies_new_culture",
+            |statistics| statistics.vacancies_new_culture,
+            SavedAs::HundredThousandPeople,
+        ),
     }
 }
 

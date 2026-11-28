@@ -85,3 +85,77 @@ fn manual_save_gives_employees_of_each_building_from_its_pops() {
     );
     assert_eq!(building(svealand, 9).employees.value, Some(895));
 }
+
+#[test]
+fn building_under_construction_has_its_staffing_and_employees_marked_missing() {
+    let snapshot = manual_save_snapshot();
+    let gotland = state(&snapshot, "STATE_GOTLAND");
+
+    let glassworks = building(gotland, 16_782_042);
+
+    assert_eq!(glassworks.kind, "building_glassworks");
+    assert_eq!(glassworks.levels.value, Some(0));
+    assert_eq!(glassworks.staffing.value, None);
+    assert_eq!(glassworks.employees.value, None);
+}
+
+#[test]
+fn manual_save_gives_country_wide_employment_unemployment_and_vacancies() {
+    let jobs = manual_save_snapshot().buildings_and_jobs.jobs;
+
+    assert_eq!(
+        jobs.salaried_workforce,
+        observed(
+            438_670,
+            Unit::People,
+            "country_manager.database.24.pop_statistics.population_salaried_workforce"
+        )
+    );
+    assert_eq!(
+        jobs.unemployed_workforce,
+        observed(
+            36_823,
+            Unit::People,
+            "country_manager.database.24.pop_statistics.population_unemployed_workforce"
+        )
+    );
+    assert_eq!(
+        jobs.subsisting_workforce,
+        observed(
+            378_501,
+            Unit::People,
+            "country_manager.database.24.pop_statistics.population_subsisting_workforce x 100000"
+        )
+    );
+    assert_eq!(
+        jobs.vacancies,
+        observed(
+            105,
+            Unit::People,
+            "country_manager.database.24.pop_statistics.vacancies_new_culture x 100000"
+        )
+    );
+}
+
+#[test]
+fn save_without_population_statistics_has_its_jobs_marked_missing() {
+    let save = "SAV01000000000000000000\n\
+         meta_data={ version=\"1.15.2\" game_date=1840.3.9.6 name=\"Testland\" }\n\
+         country_manager={ database={ 0=none 7={ definition=\"TST\" } } }\n\
+         states={ database={ 3={ country=7 region=\"STATE_TEST\" } } }\n\
+         building_manager={ database={ 0=none 1={ building=\"building_rye_farm\" levels=2 state=3 } } }\n\
+         player_manager={ database={ 0={ user=\"tester\" country=7 } } }\n";
+
+    let snapshot = read_save(save.as_bytes(), &Rakaly::on_path()).expect("the Save is read");
+
+    let jobs = snapshot.buildings_and_jobs.jobs;
+    assert_eq!(jobs.salaried_workforce.value, None);
+    assert_eq!(jobs.unemployed_workforce.value, None);
+    assert_eq!(jobs.subsisting_workforce.value, None);
+    assert_eq!(jobs.vacancies.value, None);
+    let farm = building(&snapshot.buildings_and_jobs.states[0], 1);
+    assert_eq!(farm.levels.value, Some(2));
+    assert_eq!(farm.production_methods.value, None);
+    assert_eq!(farm.staffing.value, None);
+    assert_eq!(farm.employees.value, None);
+}

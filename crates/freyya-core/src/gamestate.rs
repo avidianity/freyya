@@ -5,7 +5,7 @@ use jomini::envelope::JominiTextFile;
 use serde::de::{self, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SaveState};
+use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SavePopStatistics, SaveState};
 use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
 
 const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
@@ -42,8 +42,11 @@ struct Player {
     country: u32,
 }
 
-#[derive(Debug)]
-struct MaybeCountry(Option<String>);
+#[derive(Debug, Default)]
+struct MaybeCountry {
+    definition: Option<String>,
+    pop_statistics: Option<SavePopStatistics>,
+}
 
 impl<'de> Deserialize<'de> for MaybeCountry {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -62,21 +65,23 @@ impl<'de> Visitor<'de> for MaybeCountryVisitor {
 
     fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
         match value {
-            "none" => Ok(MaybeCountry(None)),
+            "none" => Ok(MaybeCountry::default()),
             other => Err(E::invalid_value(de::Unexpected::Str(other), &self)),
         }
     }
 
     fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        let mut definition = None;
+        let mut country = MaybeCountry::default();
         while let Some(key) = map.next_key::<String>()? {
             if key == "definition" {
-                definition = Some(map.next_value::<String>()?);
+                country.definition = Some(map.next_value::<String>()?);
+            } else if key == "pop_statistics" {
+                country.pop_statistics = Some(map.next_value()?);
             } else {
                 map.next_value::<IgnoredAny>()?;
             }
         }
-        Ok(MaybeCountry(definition))
+        Ok(country)
     }
 }
 
@@ -110,6 +115,10 @@ impl Gamestate {
             &self.states,
             &self.building_manager,
             &self.pops,
+            self.country_manager
+                .database
+                .get(&country_id)
+                .and_then(|country| country.pop_statistics.as_ref()),
         );
         Ok(Snapshot {
             game_version: self.meta_data.version,
@@ -138,7 +147,10 @@ impl Gamestate {
             }
         };
         match self.country_manager.database.get(&player.country) {
-            Some(MaybeCountry(Some(tag))) => Ok((player.country, tag.clone())),
+            Some(MaybeCountry {
+                definition: Some(tag),
+                ..
+            }) => Ok((player.country, tag.clone())),
             _ => Err(Refusal::Damaged {
                 detail: format!("the player's country {} is not in the Save", player.country),
             }),
