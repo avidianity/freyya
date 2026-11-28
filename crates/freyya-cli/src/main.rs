@@ -3,13 +3,14 @@ mod config;
 use std::path::Path;
 use std::process::ExitCode;
 
-use freyya_core::{Rakaly, read_save};
+use freyya_core::{Catalog, Rakaly, check_game_files, read_game_files, read_save};
 
 use config::{Command, USAGE, command_from_args};
 
 fn main() -> ExitCode {
     match command_from_args(std::env::args().skip(1)) {
-        Ok(Command::ReadSave { save, rakaly }) => print_save(&save, &rakaly),
+        Ok(Command::ReadSave { save, rakaly, game }) => print_save(&save, &rakaly, game.as_deref()),
+        Ok(Command::CheckGameFiles { game }) => print_game_files_check(&game),
         Err(problem) => {
             eprintln!("{problem}\n{USAGE}");
             ExitCode::from(64)
@@ -17,7 +18,14 @@ fn main() -> ExitCode {
     }
 }
 
-fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
+fn print_save(path: &Path, rakaly: &Rakaly, game: Option<&Path>) -> ExitCode {
+    let catalog = match game.map(read_game_files).transpose() {
+        Ok(catalog) => catalog,
+        Err(refusal) => {
+            eprintln!("Refused the Game files: {refusal}");
+            return ExitCode::from(66);
+        }
+    };
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) => {
@@ -34,11 +42,37 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
                 "Player country: {} ({})",
                 snapshot.player_country.name, snapshot.player_country.tag
             );
+            if let Some(catalog) = &catalog {
+                print_catalog_version(catalog, &snapshot.game_version);
+            }
             ExitCode::SUCCESS
         }
         Err(refusal) => {
             eprintln!("Refused {}: {refusal}", path.display());
             ExitCode::from(65)
         }
+    }
+}
+
+fn print_catalog_version(catalog: &Catalog, save_version: &str) {
+    println!("Game files:     version {}", catalog.game_version);
+    if catalog.game_version != save_version {
+        println!(
+            "Warning:        the Game files ({}) and the Save ({save_version}) differ in version, so names may be wrong",
+            catalog.game_version
+        );
+    }
+}
+
+fn print_game_files_check(game: &Path) -> ExitCode {
+    println!("Game files: {}", game.display());
+    let checks = check_game_files(game);
+    for check in &checks {
+        println!("{:<20}{}", check.area.to_string(), check.verdict);
+    }
+    if checks.iter().all(|check| check.verdict.passed()) {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }
