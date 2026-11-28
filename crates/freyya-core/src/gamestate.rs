@@ -5,7 +5,9 @@ use jomini::envelope::JominiTextFile;
 use serde::de::{self, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use crate::goods_market::{self, CountryMarket, MarketCountry, Markets};
+use crate::goods_market::{
+    self, Buildings, CountryMarket, MarketCountry, MarketSections, Markets, States,
+};
 use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
 
 const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
@@ -17,6 +19,10 @@ pub(crate) struct Gamestate {
     country_manager: Manager<MaybeCountry>,
     #[serde(default)]
     market_manager: Markets,
+    #[serde(default)]
+    states: States,
+    #[serde(default)]
+    building_manager: Buildings,
 }
 
 #[derive(Debug, Deserialize)]
@@ -111,7 +117,11 @@ impl Gamestate {
         let goods_market = goods_market::player_goods_market(
             player,
             &self.market_countries(),
-            &self.market_manager,
+            &MarketSections {
+                markets: &self.market_manager,
+                states: &self.states,
+                buildings: &self.building_manager,
+            },
         );
         Ok(Snapshot {
             game_version: self.meta_data.version,
