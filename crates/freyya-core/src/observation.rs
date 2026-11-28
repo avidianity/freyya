@@ -13,10 +13,20 @@ pub enum Reading {
     Missing,
 }
 
+pub(crate) fn observe(value: Option<f64>, unit: Unit, source: String) -> Observation {
+    Observation {
+        reading: value.map_or(Reading::Missing, Reading::Read),
+        unit,
+        source,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unit {
     Pounds,
     PoundsPerWeek,
+    ConstructionPoints,
+    ConstructionPointsPerWeek,
 }
 
 impl fmt::Display for Observation {
@@ -34,6 +44,8 @@ impl fmt::Display for Unit {
         match self {
             Unit::Pounds => f.write_str("£"),
             Unit::PoundsPerWeek => f.write_str("£/week"),
+            Unit::ConstructionPoints => f.write_str("construction points"),
+            Unit::ConstructionPointsPerWeek => f.write_str("construction points/week"),
         }
     }
 }

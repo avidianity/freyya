@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::marker::PhantomData;
 
 use jomini::envelope::JominiTextFile;
 use serde::de::value::MapAccessDeserializer;
@@ -7,6 +8,7 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
 use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SavePopStatistics, SaveState};
+use crate::construction::{self, SavedAi, SavedQueue};
 use crate::money::Budget;
 use crate::{GameDate, Money, PlayerCountry, Refusal, Snapshot};
 
@@ -16,7 +18,8 @@ const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
 pub(crate) struct Gamestate {
     meta_data: MetaData,
     player_manager: Manager<Player>,
-    country_manager: Manager<MaybeCountry>,
+    country_manager: Manager<MaybeNone<Country>>,
+    ai: Option<Manager<MaybeNone<SavedAi>>>,
     #[serde(default)]
     states: Database<SaveState>,
     #[serde(default)]
@@ -45,7 +48,7 @@ struct Player {
 }
 
 #[derive(Debug)]
-struct MaybeCountry(Option<Country>);
+struct MaybeNone<T>(Option<T>);
 
 #[derive(Debug, Deserialize)]
 struct Country {
@@ -55,33 +58,36 @@ struct Country {
     budget: Option<Budget>,
     #[serde(default)]
     pop_statistics: Option<SavePopStatistics>,
+    #[serde(default)]
+    government_queue: Option<SavedQueue>,
+    #[serde(default)]
+    private_queue: Option<SavedQueue>,
 }
 
-impl<'de> Deserialize<'de> for MaybeCountry {
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for MaybeNone<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_any(MaybeCountryVisitor)
+        deserializer.deserialize_any(MaybeNoneVisitor(PhantomData))
     }
 }
 
-struct MaybeCountryVisitor;
+struct MaybeNoneVisitor<T>(PhantomData<T>);
 
-impl<'de> Visitor<'de> for MaybeCountryVisitor {
-    type Value = MaybeCountry;
+impl<'de, T: Deserialize<'de>> Visitor<'de> for MaybeNoneVisitor<T> {
+    type Value = MaybeNone<T>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a country or none")
+        formatter.write_str("an object or none")
     }
 
     fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
         match value {
-            "none" => Ok(MaybeCountry(None)),
+            "none" => Ok(MaybeNone(None)),
             other => Err(E::invalid_value(de::Unexpected::Str(other), &self)),
         }
     }
 
     fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-        Country::deserialize(MapAccessDeserializer::new(map))
-            .map(|country| MaybeCountry(Some(country)))
+        T::deserialize(MapAccessDeserializer::new(map)).map(|value| MaybeNone(Some(value)))
     }
 }
 
@@ -122,12 +128,23 @@ impl Gamestate {
             &self.pops,
             country.pop_statistics.as_ref(),
         );
+        let construction = construction::construction(
+            country_id,
+            country.government_queue.as_ref(),
+            country.private_queue.as_ref(),
+            self.ai.iter().flat_map(|ai| {
+                ai.database
+                    .iter()
+                    .filter_map(|(id, entry)| entry.0.as_ref().map(|entry| (*id, entry)))
+            }),
+        );
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
             player_country,
             money,
             buildings_and_jobs,
+            construction,
         })
     }
 
@@ -147,7 +164,7 @@ impl Gamestate {
             }
         };
         match self.country_manager.database.get(&player.country) {
-            Some(MaybeCountry(Some(
+            Some(MaybeNone(Some(
                 country @ Country {
                     definition: Some(tag),
                     ..

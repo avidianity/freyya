@@ -1,7 +1,7 @@
 use std::fmt;
 
-use crate::Money;
 use crate::buildings_jobs::BuildingsAndJobs;
+use crate::{Construction, Money};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Snapshot {
@@ -10,6 +10,7 @@ pub struct Snapshot {
     pub player_country: PlayerCountry,
     pub money: Money,
     pub buildings_and_jobs: BuildingsAndJobs,
+    pub construction: Construction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

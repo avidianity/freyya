@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::observation::{Observation, Reading, Unit};
+use crate::observation::{Observation, Unit, observe};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Money {
@@ -41,14 +41,6 @@ impl Money {
             ),
             debt: observe(budget.principal, Unit::Pounds, source("principal")),
         }
-    }
-}
-
-fn observe(value: Option<f64>, unit: Unit, source: String) -> Observation {
-    Observation {
-        reading: value.map_or(Reading::Missing, Reading::Read),
-        unit,
-        source,
     }
 }
 

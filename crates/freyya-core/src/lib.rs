@@ -1,4 +1,5 @@
 pub mod buildings_jobs;
+mod construction;
 mod envelope;
 mod gamestate;
 mod money;
@@ -6,6 +7,7 @@ mod observation;
 mod rakaly;
 mod snapshot;
 
+pub use construction::{Construction, QueuedConstruction};
 pub use money::Money;
 pub use observation::{Observation, Reading, Unit};
 pub use rakaly::Rakaly;
