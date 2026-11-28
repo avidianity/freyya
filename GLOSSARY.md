@@ -37,12 +37,17 @@ _Avoid_: move, option, suggestion
 A ranked set of **Candidate actions** with the **Observations** and **Estimates** behind each one.
 _Avoid_: recommendation (alone), tip
 
+**Objective**:
+The Owner's confirmed aim for one **Campaign**, stated as priorities and limits; broad success across the economy, finances, industry, stability, technology, military, living standards, and influence when none is set.
+_Avoid_: goal, strategy, win condition
+
 ## Relationships
 
 - A **Campaign** has one or more **Saves**.
 - Each **Snapshot** comes from exactly one **Save**.
 - An **Estimate** depends on one **Snapshot** and the **Game files** of that **Snapshot**'s game version.
 - **Advice** cites the **Snapshot** it came from.
+- A **Campaign** has one **Objective** at a time, and **Advice** ranks **Candidate actions** against it.
 
 ## Flagged ambiguities
 
