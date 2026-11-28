@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -20,6 +20,8 @@ pub struct MarketGood {
     pub price: Observation,
     pub sell_orders_from_buildings: Observation,
     pub buy_orders_from_buildings: Observation,
+    pub buy_orders_from_pops: Observation,
+    pub net_exports: Observation,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +41,7 @@ pub enum Value {
 pub enum Unit {
     PoundsPerUnit,
     UnitsPerWeek,
+    TradeVolume,
 }
 
 impl fmt::Display for Unit {
@@ -46,6 +49,7 @@ impl fmt::Display for Unit {
         match self {
             Unit::PoundsPerUnit => f.write_str("£ per unit"),
             Unit::UnitsPerWeek => f.write_str("units per week"),
+            Unit::TradeVolume => f.write_str("trade volume"),
         }
     }
 }
@@ -111,6 +115,7 @@ pub(crate) struct States {
 #[derive(Debug, Deserialize)]
 struct StateRecord {
     country: Option<u32>,
+    trade: Option<GoodAmounts>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -206,23 +211,33 @@ pub(crate) fn player_goods_market(
         .filter_map(|country| country.tag.map(str::to_owned))
         .collect();
     members.sort();
-    let market_states: BTreeSet<u32> = sections
+    let market_states: BTreeMap<u32, &StateRecord> = sections
         .states
         .database
         .iter()
         .filter_map(|(id, state)| {
-            let country = state.0.as_ref()?.country?;
-            member_ids.contains(&country).then_some(*id)
+            let state = state.0.as_ref()?;
+            member_ids.contains(&state.country?).then_some((*id, state))
         })
         .collect();
     let orders = building_orders(sections.buildings, &market_states);
+    let mut net_exports = HashMap::new();
+    for state in market_states.values() {
+        add_amounts(&mut net_exports, state.trade.as_ref());
+    }
     let prices = owner
         .and_then(|owner| owner.market.budget.as_ref())
         .and_then(|budget| budget.current_price_report.as_ref());
     let mut goods: BTreeSet<u16> = prices
         .map(|report| report.goods.keys().copied().collect())
         .unwrap_or_default();
-    goods.extend(orders.sell.keys().chain(orders.buy.keys()));
+    goods.extend(
+        orders
+            .sell
+            .keys()
+            .chain(orders.buy.keys())
+            .chain(net_exports.keys()),
+    );
     let goods = goods
         .into_iter()
         .map(|good| MarketGood {
@@ -230,6 +245,20 @@ pub(crate) fn player_goods_market(
             price: price(good, owner_id, prices),
             sell_orders_from_buildings: building_flow(good, market, "output_goods", &orders.sell),
             buy_orders_from_buildings: building_flow(good, market, "input_goods", &orders.buy),
+            buy_orders_from_pops: Observation {
+                value: Value::Missing {
+                    reason: "the Save stores pop spending as money, not as goods".to_owned(),
+                },
+                unit: Unit::UnitsPerWeek,
+                source: "pops.database.*.weekly_budget".to_owned(),
+            },
+            net_exports: Observation {
+                value: Value::Read(net_exports.get(&good).copied().unwrap_or_default()),
+                unit: Unit::TradeVolume,
+                source: format!(
+                    "states.database.*.trade.goods.{good}.value, summed over the states of market {market}"
+                ),
+            },
         })
         .collect();
     Some(GoodsMarket {
@@ -240,7 +269,10 @@ pub(crate) fn player_goods_market(
     })
 }
 
-fn building_orders(buildings: &Buildings, market_states: &BTreeSet<u32>) -> BuildingOrders {
+fn building_orders(
+    buildings: &Buildings,
+    market_states: &BTreeMap<u32, &StateRecord>,
+) -> BuildingOrders {
     let mut orders = BuildingOrders::default();
     let in_market = buildings
         .database
@@ -249,7 +281,7 @@ fn building_orders(buildings: &Buildings, market_states: &BTreeSet<u32>) -> Buil
         .filter(|building| {
             building
                 .state
-                .is_some_and(|state| market_states.contains(&state))
+                .is_some_and(|state| market_states.contains_key(&state))
         });
     for building in in_market {
         add_amounts(&mut orders.sell, building.output_goods.as_ref());

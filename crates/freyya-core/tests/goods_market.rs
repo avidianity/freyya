@@ -5,6 +5,7 @@ const TANKS: u16 = 3;
 const GRAIN: u16 = 7;
 const CLOTHES: u16 = 12;
 const IRON: u16 = 25;
+const TOOLS: u16 = 35;
 
 fn manual_save_market() -> GoodsMarket {
     let path = concat!(
@@ -79,4 +80,68 @@ fn manual_save_gives_sell_and_buy_orders_of_buildings_in_the_players_market() {
     let tanks = good(&market, TANKS);
     assert_close(read_value(&tanks.sell_orders_from_buildings), 0.0);
     assert_close(read_value(&tanks.buy_orders_from_buildings), 0.0);
+}
+
+#[test]
+fn manual_save_gives_net_exports_of_the_players_market() {
+    let market = manual_save_market();
+    let iron = good(&market, IRON);
+    assert_close(read_value(&iron.net_exports), 30.0);
+    assert_eq!(iron.net_exports.unit, Unit::TradeVolume);
+    assert_eq!(
+        iron.net_exports.source,
+        "states.database.*.trade.goods.25.value, summed over the states of market 8"
+    );
+    assert_close(read_value(&good(&market, TOOLS).net_exports), -12.0);
+    assert_close(read_value(&good(&market, TANKS).net_exports), 0.0);
+}
+
+fn hand_made_market_save(country: &str) -> Vec<u8> {
+    format!(
+        "SAV01000000000000000000\n\
+         meta_data={{ version=\"1.15.2\" game_date=1840.3.9.6 name=\"Testland\" }}\n\
+         country_manager={{ database={{ 0=none 7={{ definition=\"TST\" {country} }} }} }}\n\
+         states={{ database={{ 0=none 1={{ country=7 }} }} }}\n\
+         market_manager={{ database={{ 3={{ owner=7 }} }} }}\n\
+         building_manager={{ database={{ 0=none 5={{ building=\"building_textile_mill\" state=1 \
+         output_goods={{ behavior=keep_zeros goods={{ 12={{ value=5.5 }} }} }} }} }} }}\n\
+         player_manager={{ database={{ 0={{ user=\"tester\" country=7 }} }} }}\n"
+    )
+    .into_bytes()
+}
+
+#[test]
+fn price_is_missing_not_zero_when_the_save_has_no_price_report() {
+    let save = hand_made_market_save("market=3");
+    let market = read_save(&save, &Rakaly::on_path())
+        .expect("a hand-made Save is read")
+        .goods_market
+        .expect("the hand-made Save names the player's market");
+    assert_eq!(market.owner.as_deref(), Some("TST"));
+    let clothes = good(&market, CLOTHES);
+    assert_close(read_value(&clothes.sell_orders_from_buildings), 5.5);
+    assert!(
+        matches!(clothes.price.value, Value::Missing { .. }),
+        "got {:?}",
+        clothes.price
+    );
+}
+
+#[test]
+fn goods_market_is_missing_when_the_save_names_no_market_for_the_player() {
+    let save = hand_made_market_save("");
+    let snapshot = read_save(&save, &Rakaly::on_path()).expect("a hand-made Save is read");
+    assert_eq!(snapshot.goods_market, None);
+}
+
+#[test]
+fn buy_orders_of_pops_are_missing_because_the_save_does_not_store_them() {
+    let market = manual_save_market();
+    let grain = good(&market, GRAIN);
+    assert!(
+        matches!(grain.buy_orders_from_pops.value, Value::Missing { .. }),
+        "got {:?}",
+        grain.buy_orders_from_pops
+    );
+    assert_eq!(grain.buy_orders_from_pops.unit, Unit::UnitsPerWeek);
 }
