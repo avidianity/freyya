@@ -4,7 +4,7 @@ use crate::observation::{Observation, Unit, observe};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Construction {
-    pub capacity: Observation,
+    pub construction_in_use: Observation,
     pub government_queue: Vec<QueuedConstruction>,
     pub private_queue: Vec<QueuedConstruction>,
 }
@@ -29,51 +29,36 @@ struct SavedElement {
     building: String,
     state: u32,
     construction_left: Option<f64>,
-    construction_speed: Option<f64>,
+    base_construction_speed: Option<f64>,
 }
 
-#[derive(Debug, Deserialize)]
-pub(crate) struct SavedAi {
-    country: u32,
-    spending_variables: Option<SavedSpending>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SavedSpending {
-    construction_output: Option<f64>,
-}
-
-pub(crate) fn construction<'a>(
+pub(crate) fn construction(
     country: u32,
     government_queue: Option<&SavedQueue>,
     private_queue: Option<&SavedQueue>,
-    ai: impl IntoIterator<Item = (u32, &'a SavedAi)>,
 ) -> Construction {
     Construction {
-        capacity: capacity(country, ai),
+        construction_in_use: construction_in_use(country, [government_queue, private_queue]),
         government_queue: queue(country, "government_queue", government_queue),
         private_queue: queue(country, "private_queue", private_queue),
     }
 }
 
-fn capacity<'a>(country: u32, ai: impl IntoIterator<Item = (u32, &'a SavedAi)>) -> Observation {
-    let player_ai = ai.into_iter().find(|(_, entry)| entry.country == country);
-    let (source, value) = match player_ai {
-        Some((id, entry)) => (
-            format!("ai.database.{id}.spending_variables.construction_output"),
-            entry
-                .spending_variables
-                .as_ref()
-                .and_then(|spending| spending.construction_output),
+fn construction_in_use(country: u32, queues: [Option<&SavedQueue>; 2]) -> Observation {
+    let speeds: Vec<f64> = queues
+        .into_iter()
+        .flatten()
+        .flat_map(|queue| &queue.construction_elements)
+        .filter_map(|element| element.base_construction_speed)
+        .collect();
+    let total = (!speeds.is_empty()).then(|| speeds.iter().sum());
+    observe(
+        total,
+        Unit::ConstructionPointsPerWeek,
+        format!(
+            "country_manager.database.{country}.government_queue and private_queue construction_elements[*].base_construction_speed (sum)"
         ),
-        None => (
-            format!(
-                "ai.database.<entry for country {country}>.spending_variables.construction_output"
-            ),
-            None,
-        ),
-    };
-    observe(value, Unit::ConstructionPointsPerWeek, source)
+    )
 }
 
 fn queue(country: u32, name: &str, saved: Option<&SavedQueue>) -> Vec<QueuedConstruction> {
@@ -99,9 +84,9 @@ fn queue(country: u32, name: &str, saved: Option<&SavedQueue>) -> Vec<QueuedCons
                     source("construction_left"),
                 ),
                 construction_speed: observe(
-                    element.construction_speed,
+                    element.base_construction_speed,
                     Unit::ConstructionPointsPerWeek,
-                    source("construction_speed"),
+                    source("base_construction_speed"),
                 ),
             }
         })
