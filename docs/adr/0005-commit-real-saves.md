@@ -39,3 +39,4 @@ Game files belong to Paradox, so redistributing them is a different question fro
 - CI tests real Save parsing on every pull request.
 - Repository history grows by each committed Save; choose them on purpose.
 - A Save over 50 MB needs a new decision before it is committed.
+- No hook or check enforces the 50 MB limit or the Owner's request yet; agents follow it as a rule, and GitHub's 100 MB limit is the only hard stop.

@@ -20,9 +20,8 @@ In freyya, an agent also never does these:
 
 - Write, move, or delete anything in the Victoria 3 install folder, the Victoria 3 save folder, or the Paradox launcher settings.
   Freyya and its agents only read there.
-- Commit Victoria 3 game files or the Owner's save files to the repository.
-  Game files are Paradox's copyrighted material, and saves are the Owner's personal campaigns.
-  Test with synthetic fixtures, or with copies kept outside the repository.
+- Commit Victoria 3 game files to the repository, because they are Paradox's copyrighted material.
+- Commit a Save without the Owner's request, outside `fixtures/saves/`, or over 50 MB ([ADR 0005](../adr/0005-commit-real-saves.md)).
 - Make a paid AI call from an automated test.
   Tests use a deterministic stand-in for every AI model.
 

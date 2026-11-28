@@ -2,8 +2,8 @@
 
 The Owner wrote this brief and handed it over during the spec grill on 2026-11-28.
 Part 1 is the brief as written.
-Part 2 records the Owner's decisions from that grill, which narrow and order it.
-Where Part 2 and Part 1 differ, Part 2 wins.
+Part 2 records the Owner's answers from that grill, which narrow and order it.
+This note is reference: the investigation scope lives in [issue #4](https://github.com/avidianity/freyya/issues/4), rules live in `.rules`, and lasting decisions live in `docs/adr/`.
 
 ## Part 1: Victoria 3 AI Companion (as written)
 
@@ -321,7 +321,7 @@ Report findings, architectural recommendations, unresolved concerns, and a propo
 ## Part 2: Owner decisions from the grill (2026-11-28)
 
 Facts found during the grill: Victoria 3 1.15.2 is installed, with no DLC and no mods.
-The Owner's **Saves** are in `Documents\Paradox Interactive\Victoria 3\save games` under OneDrive: one Sweden **Campaign** at 1837, five rotating autosaves of about 12 MB, and the manual Save `sweden_1837_08_16.v3`.
+The Owner has one Sweden **Campaign** at 1837: five rotating autosaves of about 12 MB, and the manual Save `sweden_1837_08_16.v3`.
 
 1. **Investigation first.**
    The first milestone is the investigation of section 12, run on the Owner's real Saves and Game files.
@@ -364,6 +364,6 @@ The Owner's **Saves** are in `Documents\Paradox Interactive\Victoria 3\save game
     A chosen set of real Saves, each under 50 MB, is committed as test fixtures, plus tiny hand-made fixtures for missing cases.
     Game files stay out of the repository ([ADR 0005](../adr/0005-commit-real-saves.md)).
 13. **Where work lives.**
-    This brief holds the scope, one GitHub issue tracks the investigation, and the findings report arrives in `docs/research/` as a pull request.
+    This brief keeps the Owner's intent, [issue #4](https://github.com/avidianity/freyya/issues/4) holds the investigation scope, and the findings report arrives in `docs/research/` as a pull request.
 
 Left for after the report: the AI budget (the $0.50 per day default and how the Owner approves going over it), model choice and routing, where the AI key is stored, a hands-on mod test, and the order of features after the investigation.
