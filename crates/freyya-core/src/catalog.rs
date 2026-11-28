@@ -51,13 +51,6 @@ impl Catalog {
             .find(|building| building.key == key)
             .map(Definition::display_name)
     }
-
-    pub fn define(&self, namespace: &str, key: &str) -> Option<&str> {
-        self.defines
-            .iter()
-            .find(|define| define.namespace == namespace && define.key == key)
-            .map(|define| define.value.as_str())
-    }
 }
 
 #[derive(Debug)]

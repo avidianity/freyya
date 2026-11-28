@@ -144,10 +144,25 @@ fn defines_are_read_by_namespace_and_key() {
 
     let catalog = read_game_files(&folder).expect("the tiny game folder is read");
 
-    assert_eq!(catalog.define("NCountry", "SOME_LIMIT"), Some("4"));
-    assert_eq!(catalog.define("NGame", "START_DATE"), Some("1900.1.1"));
-    assert_eq!(catalog.define("NCountry", "SOME_RATE"), Some("0.5"));
-    assert_eq!(catalog.define("NGame", "SOME_LIMIT"), None);
+    let defines: Vec<(&str, &str, &str)> = catalog
+        .defines
+        .iter()
+        .map(|define| {
+            (
+                define.namespace.as_str(),
+                define.key.as_str(),
+                define.value.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        defines,
+        [
+            ("NGame", "START_DATE", "1900.1.1"),
+            ("NCountry", "SOME_LIMIT", "4"),
+            ("NCountry", "SOME_RATE", "0.5"),
+        ]
+    );
 }
 
 const BROKEN_GOODS: (&str, Option<&str>) = (

@@ -109,10 +109,34 @@ fn print_game_files_check(game: &Path) -> ExitCode {
     for check in &checks {
         println!("{:<20}{}", check.area.to_string(), check.verdict);
     }
-    if checks.iter().all(|check| check.verdict.passed()) {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::FAILURE
+    if !checks.iter().all(|check| check.verdict.passed()) {
+        return ExitCode::FAILURE;
+    }
+    match read_game_files(game) {
+        Ok(catalog) => {
+            print_catalog(&catalog);
+            ExitCode::SUCCESS
+        }
+        Err(refusal) => {
+            eprintln!("Refused the Game files: {refusal}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn print_catalog(catalog: &Catalog) {
+    println!("Catalog:    version {}", catalog.game_version);
+    for (area, count) in [
+        ("goods", catalog.goods.len()),
+        ("buildings", catalog.buildings.len()),
+        ("production methods", catalog.production_methods.len()),
+        ("technologies", catalog.technologies.len()),
+        ("laws", catalog.laws.len()),
+        ("pop needs", catalog.pop_needs.len()),
+        ("state regions", catalog.state_regions.len()),
+        ("defines", catalog.defines.len()),
+    ] {
+        println!("  {area:<20}{count}");
     }
 }
 
