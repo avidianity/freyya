@@ -30,6 +30,8 @@ pub struct PlayerCountry {
 pub enum Refusal {
     Damaged { detail: String },
     Incomplete,
+    UnsupportedVersion { version: String },
+    Modded { mods: Vec<String> },
     ReaderUnavailable { detail: String },
 }
 
@@ -40,6 +42,15 @@ impl fmt::Display for Refusal {
             Refusal::Incomplete => write!(
                 f,
                 "the Save is incomplete: its end is missing, so it may still be being written"
+            ),
+            Refusal::UnsupportedVersion { version } => write!(
+                f,
+                "the Save comes from game version {version}, which freyya has not checked"
+            ),
+            Refusal::Modded { mods } => write!(
+                f,
+                "the Save has mods active ({}); freyya supports only vanilla Saves",
+                mods.join(", ")
             ),
             Refusal::ReaderUnavailable { detail } => {
                 write!(f, "the Save reader (Rakaly CLI) could not run: {detail}")

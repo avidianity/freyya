@@ -7,6 +7,8 @@ use serde::{Deserialize, Deserializer};
 
 use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
 
+const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct Gamestate {
     meta_data: MetaData,
@@ -19,6 +21,8 @@ struct MetaData {
     version: String,
     game_date: String,
     name: String,
+    #[serde(default)]
+    mods: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,6 +86,16 @@ impl Gamestate {
     }
 
     pub(crate) fn into_snapshot(self) -> Result<Snapshot, Refusal> {
+        if !CHECKED_GAME_VERSIONS.contains(&self.meta_data.version.as_str()) {
+            return Err(Refusal::UnsupportedVersion {
+                version: self.meta_data.version,
+            });
+        }
+        if !self.meta_data.mods.is_empty() {
+            return Err(Refusal::Modded {
+                mods: self.meta_data.mods,
+            });
+        }
         let game_date = parse_game_date(&self.meta_data.game_date)?;
         let tag = self.player_tag()?;
         Ok(Snapshot {
