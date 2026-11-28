@@ -1,42 +1,51 @@
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Observation<T> {
-    pub value: Option<T>,
+pub struct Observation {
+    pub reading: Reading,
     pub unit: Unit,
     pub source: String,
 }
 
-impl<T> Observation<T> {
-    pub(crate) fn new(value: Option<T>, unit: Unit, source: String) -> Self {
-        Observation {
-            value,
-            unit,
-            source,
-        }
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Reading {
+    Read(f64),
+    Missing,
+}
+
+pub(crate) fn observe(value: Option<f64>, unit: Unit, source: String) -> Observation {
+    Observation {
+        reading: value.map_or(Reading::Missing, Reading::Read),
+        unit,
+        source,
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unit {
+    Pounds,
+    PoundsPerWeek,
     ConstructionPoints,
     ConstructionPointsPerWeek,
 }
 
-impl fmt::Display for Unit {
+impl fmt::Display for Observation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Unit::ConstructionPoints => "construction points",
-            Unit::ConstructionPointsPerWeek => "construction points per week",
-        })
+        match self.reading {
+            Reading::Read(value) => write!(f, "{value:.2} {}", self.unit)?,
+            Reading::Missing => f.write_str("missing")?,
+        }
+        write!(f, "  [{}]", self.source)
     }
 }
 
-impl<T: fmt::Display> fmt::Display for Observation<T> {
+impl fmt::Display for Unit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.value {
-            Some(value) => write!(f, "{value} {} [{}]", self.unit, self.source),
-            None => write!(f, "missing ({}) [{}]", self.unit, self.source),
+        match self {
+            Unit::Pounds => f.write_str("£"),
+            Unit::PoundsPerWeek => f.write_str("£/week"),
+            Unit::ConstructionPoints => f.write_str("construction points"),
+            Unit::ConstructionPointsPerWeek => f.write_str("construction points/week"),
         }
     }
 }

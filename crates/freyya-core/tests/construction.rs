@@ -1,4 +1,4 @@
-use freyya_core::{Observation, QueuedConstruction, Rakaly, Unit, read_save};
+use freyya_core::{Observation, QueuedConstruction, Rakaly, Reading, Unit, read_save};
 
 fn manual_save() -> Vec<u8> {
     let path = concat!(
@@ -41,19 +41,19 @@ fn manual_save_gives_the_government_construction_queue_in_order() {
             building: "building_livestock_ranch".to_owned(),
             state: 130,
             construction_left: Observation {
-                value: Some(25.35464),
+                reading: Reading::Read(25.35464),
                 unit: Unit::ConstructionPoints,
                 source: "country_manager.database.24.government_queue.construction_elements[0].construction_left".to_owned(),
             },
             construction_speed: Observation {
-                value: Some(7.77225),
+                reading: Reading::Read(7.77225),
                 unit: Unit::ConstructionPointsPerWeek,
                 source: "country_manager.database.24.government_queue.construction_elements[0].construction_speed".to_owned(),
             },
         }
     );
-    assert_eq!(queue[1].construction_left.value, Some(200.0));
-    assert_eq!(queue[1].construction_speed.value, None);
+    assert_eq!(queue[1].construction_left.reading, Reading::Read(200.0));
+    assert_eq!(queue[1].construction_speed.reading, Reading::Missing);
     assert_eq!(queue[2].building, "building_arms_industry");
     assert_eq!(queue[2].state, 483);
 }
@@ -65,7 +65,7 @@ fn manual_save_gives_the_construction_capacity() {
     assert_eq!(
         snapshot.construction.capacity,
         Observation {
-            value: Some(25.0),
+            reading: Reading::Read(25.0),
             unit: Unit::ConstructionPointsPerWeek,
             source: "ai.database.326.spending_variables.construction_output".to_owned(),
         }
@@ -81,7 +81,7 @@ fn construction_capacity_is_missing_when_the_save_does_not_record_it() {
 
     let snapshot = read_save(&save, &Rakaly::on_path()).expect("the hand-made Save is read");
 
-    assert_eq!(snapshot.construction.capacity.value, None);
+    assert_eq!(snapshot.construction.capacity.reading, Reading::Missing);
     assert_eq!(
         snapshot.construction.capacity.unit,
         Unit::ConstructionPointsPerWeek
@@ -96,8 +96,8 @@ fn manual_save_gives_the_private_construction_queue() {
     assert_eq!(queue.len(), 1);
     assert_eq!(queue[0].building, "building_glassworks");
     assert_eq!(queue[0].state, 129);
-    assert_eq!(queue[0].construction_left.value, Some(366.76846));
-    assert_eq!(queue[0].construction_speed.value, Some(7.77225));
+    assert_eq!(queue[0].construction_left.reading, Reading::Read(366.76846));
+    assert_eq!(queue[0].construction_speed.reading, Reading::Read(7.77225));
     assert_eq!(
         queue[0].construction_left.source,
         "country_manager.database.24.private_queue.construction_elements[0].construction_left"

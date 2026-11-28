@@ -34,6 +34,10 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
                 "Player country: {} ({})",
                 snapshot.player_country.name, snapshot.player_country.tag
             );
+            println!("Treasury:       {}", snapshot.money.treasury);
+            println!("Income:         {}", snapshot.money.weekly_income);
+            println!("Expenses:       {}", snapshot.money.weekly_expenses);
+            println!("Debt:           {}", snapshot.money.debt);
             print_construction(&snapshot.construction);
             ExitCode::SUCCESS
         }
@@ -45,22 +49,21 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
 }
 
 fn print_construction(construction: &Construction) {
-    println!("Construction");
-    println!("  Capacity: {}", construction.capacity);
+    println!("Construction capacity: {}", construction.capacity);
     print_queue("Government queue", &construction.government_queue);
     print_queue("Private queue", &construction.private_queue);
 }
 
 fn print_queue(title: &str, queue: &[QueuedConstruction]) {
-    println!("  {title}: {} items", queue.len());
+    println!("{title}: {} items", queue.len());
     for (position, item) in queue.iter().enumerate() {
         println!(
-            "    {:>2}. {} in state {}",
+            "  {:>2}. {} in state {}",
             position + 1,
             item.building,
             item.state
         );
-        println!("        left:  {}", item.construction_left);
-        println!("        speed: {}", item.construction_speed);
+        println!("      left:  {}", item.construction_left);
+        println!("      speed: {}", item.construction_speed);
     }
 }

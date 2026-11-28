@@ -8,7 +8,8 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
 use crate::construction::{self, SavedAi, SavedQueue};
-use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
+use crate::money::Budget;
+use crate::{GameDate, Money, PlayerCountry, Refusal, Snapshot};
 
 const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
 
@@ -39,15 +40,20 @@ struct Player {
     country: u32,
 }
 
-#[derive(Debug, Deserialize)]
-struct Country {
-    definition: String,
-    government_queue: Option<SavedQueue>,
-    private_queue: Option<SavedQueue>,
-}
-
 #[derive(Debug)]
 struct MaybeNone<T>(Option<T>);
+
+#[derive(Debug, Deserialize)]
+struct Country {
+    #[serde(default)]
+    definition: Option<String>,
+    #[serde(default)]
+    budget: Option<Budget>,
+    #[serde(default)]
+    government_queue: Option<SavedQueue>,
+    #[serde(default)]
+    private_queue: Option<SavedQueue>,
+}
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for MaybeNone<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -100,7 +106,12 @@ impl Gamestate {
             });
         }
         let game_date = parse_game_date(&self.meta_data.game_date)?;
-        let (country_id, country) = self.player_country()?;
+        let (country_id, country, tag) = self.player_country()?;
+        let player_country = PlayerCountry {
+            tag: tag.to_owned(),
+            name: self.meta_data.name.clone(),
+        };
+        let money = Money::from_budget(country_id, country.budget.as_ref());
         let construction = construction::construction(
             country_id,
             country.government_queue.as_ref(),
@@ -111,19 +122,16 @@ impl Gamestate {
                     .filter_map(|(id, entry)| entry.0.as_ref().map(|entry| (*id, entry)))
             }),
         );
-        let tag = country.definition.clone();
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
-            player_country: PlayerCountry {
-                tag,
-                name: self.meta_data.name,
-            },
+            player_country,
+            money,
             construction,
         })
     }
 
-    fn player_country(&self) -> Result<(u32, &Country), Refusal> {
+    fn player_country(&self) -> Result<(u32, &Country, &str), Refusal> {
         let mut players = self.player_manager.database.values();
         let player = match (players.next(), players.next()) {
             (Some(player), None) => player,
@@ -139,7 +147,12 @@ impl Gamestate {
             }
         };
         match self.country_manager.database.get(&player.country) {
-            Some(MaybeNone(Some(country))) => Ok((player.country, country)),
+            Some(MaybeNone(Some(
+                country @ Country {
+                    definition: Some(tag),
+                    ..
+                },
+            ))) => Ok((player.country, country, tag)),
             _ => Err(Refusal::Damaged {
                 detail: format!("the player's country {} is not in the Save", player.country),
             }),

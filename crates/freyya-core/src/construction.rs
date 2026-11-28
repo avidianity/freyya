@@ -1,10 +1,10 @@
 use serde::Deserialize;
 
-use crate::{Observation, Unit};
+use crate::observation::{Observation, Unit, observe};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Construction {
-    pub capacity: Observation<f64>,
+    pub capacity: Observation,
     pub government_queue: Vec<QueuedConstruction>,
     pub private_queue: Vec<QueuedConstruction>,
 }
@@ -13,8 +13,8 @@ pub struct Construction {
 pub struct QueuedConstruction {
     pub building: String,
     pub state: u32,
-    pub construction_left: Observation<f64>,
-    pub construction_speed: Observation<f64>,
+    pub construction_left: Observation,
+    pub construction_speed: Observation,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -56,10 +56,7 @@ pub(crate) fn construction<'a>(
     }
 }
 
-fn capacity<'a>(
-    country: u32,
-    ai: impl IntoIterator<Item = (u32, &'a SavedAi)>,
-) -> Observation<f64> {
+fn capacity<'a>(country: u32, ai: impl IntoIterator<Item = (u32, &'a SavedAi)>) -> Observation {
     let player_ai = ai.into_iter().find(|(_, entry)| entry.country == country);
     let (source, value) = match player_ai {
         Some((id, entry)) => (
@@ -76,7 +73,7 @@ fn capacity<'a>(
             None,
         ),
     };
-    Observation::new(value, Unit::ConstructionPointsPerWeek, source)
+    observe(value, Unit::ConstructionPointsPerWeek, source)
 }
 
 fn queue(country: u32, name: &str, saved: Option<&SavedQueue>) -> Vec<QueuedConstruction> {
@@ -96,12 +93,12 @@ fn queue(country: u32, name: &str, saved: Option<&SavedQueue>) -> Vec<QueuedCons
             QueuedConstruction {
                 building: element.building.clone(),
                 state: element.state,
-                construction_left: Observation::new(
+                construction_left: observe(
                     element.construction_left,
                     Unit::ConstructionPoints,
                     source("construction_left"),
                 ),
-                construction_speed: Observation::new(
+                construction_speed: observe(
                     element.construction_speed,
                     Unit::ConstructionPointsPerWeek,
                     source("construction_speed"),
