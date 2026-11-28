@@ -29,19 +29,22 @@ jobs:
         id: filter
         env:
           EVENT: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          set -euo pipefail
           if [ "$EVENT" != "pull_request" ]; then
             echo "rust=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "$BASE_SHA" HEAD | grep -qvE '\.md$'; then
-            echo "rust=true" >> "$GITHUB_OUTPUT"
-          else
+            exit 0
+          fi
+          files=$(git diff --no-renames --name-only HEAD^1 HEAD)
+          if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qvE '\.md$'; then
             echo "rust=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "rust=true" >> "$GITHUB_OUTPUT"
           fi
 
   rust:
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.rust == 'true') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
