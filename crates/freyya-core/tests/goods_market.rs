@@ -34,6 +34,13 @@ fn read_value(observation: &Observation) -> f64 {
     }
 }
 
+fn assert_missing(observation: &Observation) {
+    assert!(
+        matches!(observation.value, Value::Missing { .. }),
+        "expected missing, got {observation:?}"
+    );
+}
+
 fn assert_close(actual: f64, expected: f64) {
     assert!(
         (actual - expected).abs() < 1e-4,
@@ -76,10 +83,10 @@ fn manual_save_gives_sell_and_buy_orders_of_buildings_in_the_players_market() {
     assert_close(read_value(&grain.buy_orders_from_buildings), 14.47342);
     let clothes = good(&market, CLOTHES);
     assert_close(read_value(&clothes.sell_orders_from_buildings), 173.50944);
-    assert_close(read_value(&clothes.buy_orders_from_buildings), 0.0);
+    assert_missing(&clothes.buy_orders_from_buildings);
     let tanks = good(&market, TANKS);
-    assert_close(read_value(&tanks.sell_orders_from_buildings), 0.0);
-    assert_close(read_value(&tanks.buy_orders_from_buildings), 0.0);
+    assert_missing(&tanks.sell_orders_from_buildings);
+    assert_missing(&tanks.buy_orders_from_buildings);
 }
 
 #[test]
@@ -93,7 +100,7 @@ fn manual_save_gives_net_exports_of_the_players_market() {
         "states.database.*.trade.goods.25.value, summed over the states of market 8"
     );
     assert_close(read_value(&good(&market, TOOLS).net_exports), -12.0);
-    assert_close(read_value(&good(&market, TANKS).net_exports), 0.0);
+    assert_missing(&good(&market, TANKS).net_exports);
 }
 
 fn hand_made_market_save(country: &str) -> Vec<u8> {
@@ -124,6 +131,29 @@ fn price_is_missing_not_zero_when_the_save_has_no_price_report() {
         matches!(clothes.price.value, Value::Missing { .. }),
         "got {:?}",
         clothes.price
+    );
+}
+
+#[test]
+fn building_orders_and_net_exports_are_missing_not_zero_when_the_save_has_no_entry() {
+    let save = hand_made_market_save("market=3");
+    let market = read_save(&save, &Rakaly::on_path())
+        .expect("a hand-made Save is read")
+        .goods_market
+        .expect("the hand-made Save names the player's market");
+    let clothes = good(&market, CLOTHES);
+    assert!(
+        matches!(
+            clothes.buy_orders_from_buildings.value,
+            Value::Missing { .. }
+        ),
+        "got {:?}",
+        clothes.buy_orders_from_buildings
+    );
+    assert!(
+        matches!(clothes.net_exports.value, Value::Missing { .. }),
+        "got {:?}",
+        clothes.net_exports
     );
 }
 

@@ -164,7 +164,10 @@ pub(crate) fn player_goods_market(
                 source: "pops.database.*.weekly_budget".to_owned(),
             },
             net_exports: Observation {
-                value: Value::Read(net_exports.get(&good).copied().unwrap_or_default()),
+                value: summed_value(
+                    net_exports.get(&good),
+                    "no state in the market has a trade entry for this good",
+                ),
                 unit: Unit::TradeVolume,
                 source: format!(
                     "states.database.*.trade.goods.{good}.value, summed over the states of market {market}"
@@ -202,9 +205,21 @@ fn add_amounts(totals: &mut HashMap<u16, f64>, amounts: Option<&GoodAmounts>) {
     }
 }
 
+fn summed_value(total: Option<&f64>, reason: &str) -> Value {
+    match total {
+        Some(total) => Value::Read(*total),
+        None => Value::Missing {
+            reason: reason.to_owned(),
+        },
+    }
+}
+
 fn building_flow(good: u16, market: u32, field: &str, totals: &HashMap<u16, f64>) -> Observation {
     Observation {
-        value: Value::Read(totals.get(&good).copied().unwrap_or_default()),
+        value: summed_value(
+            totals.get(&good),
+            &format!("no building in the market has this good in its {field}"),
+        ),
         unit: Unit::UnitsPerWeek,
         source: format!(
             "building_manager.database.*.{field}.goods.{good}.value, summed over buildings in the states of market {market}"
