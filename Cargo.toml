@@ -7,6 +7,12 @@ edition = "2024"
 license = "UNLICENSED"
 publish = false
 
+[profile.dev.package.zlib-rs]
+opt-level = 3
+
+[profile.dev.package.jomini]
+opt-level = 3
+
 [workspace.lints.rust]
 warnings = "deny"
 dead_code = "deny"

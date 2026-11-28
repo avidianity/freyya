@@ -29,6 +29,7 @@ pub struct PlayerCountry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Refusal {
     Damaged { detail: String },
+    Incomplete,
     ReaderUnavailable { detail: String },
 }
 
@@ -36,6 +37,10 @@ impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Refusal::Damaged { detail } => write!(f, "the Save is damaged: {detail}"),
+            Refusal::Incomplete => write!(
+                f,
+                "the Save is incomplete: its end is missing, so it may still be being written"
+            ),
             Refusal::ReaderUnavailable { detail } => {
                 write!(f, "the Save reader (Rakaly CLI) could not run: {detail}")
             }
