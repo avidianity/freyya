@@ -61,7 +61,7 @@ Policy-enforcing CI checks execute from the protected base revision and read pul
 
 ## Mandatory: personal and production data
 
-- Develop and test with synthetic data.
+- Develop and test with synthetic data; the Owner's Saves in `fixtures/saves/` are not personal data ([ADR 0005](../adr/0005-commit-real-saves.md)).
 - Remove personal data from logs, screenshots, traces, and evidence before you store or post them.
 - Report an address, an account, or a person by its kind, not its value, unless the Owner needs the value.
 

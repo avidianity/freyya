@@ -23,7 +23,7 @@ Game files belong to Paradox, so redistributing them is a different question fro
 - Every check, including CI, can run against these real Saves.
 - Tiny hand-made fixtures cover only the cases that the real Saves do not contain, such as an unknown game version or a damaged Save.
 - Game files stay out of the repository; checks that need them run only on the Owner's machine.
-- The read-only rule toward the game is unchanged: freyya copies a Save into `fixtures/saves/` only when the Owner asks, and never writes to the save folder.
+- The read-only rule toward the game is unchanged: an agent copies a Save into `fixtures/saves/` only when the Owner asks, and never writes to the save folder.
 
 ## Considered options
 
