@@ -1,8 +1,12 @@
+mod construction;
 mod envelope;
 mod gamestate;
+mod observation;
 mod rakaly;
 mod snapshot;
 
+pub use construction::{Construction, QueuedConstruction};
+pub use observation::{Observation, Unit};
 pub use rakaly::Rakaly;
 pub use snapshot::{GameDate, PlayerCountry, Refusal, Snapshot};
 

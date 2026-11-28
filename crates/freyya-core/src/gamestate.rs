@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::marker::PhantomData;
 
 use jomini::envelope::JominiTextFile;
-use serde::de::{self, IgnoredAny, MapAccess, Visitor};
+use serde::de::value::MapAccessDeserializer;
+use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
+use crate::construction::{self, SavedQueue};
 use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
 
 const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
@@ -13,7 +16,7 @@ const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
 pub(crate) struct Gamestate {
     meta_data: MetaData,
     player_manager: Manager<Player>,
-    country_manager: Manager<MaybeCountry>,
+    country_manager: Manager<MaybeNone<Country>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,41 +38,40 @@ struct Player {
     country: u32,
 }
 
-#[derive(Debug)]
-struct MaybeCountry(Option<String>);
+#[derive(Debug, Deserialize)]
+struct Country {
+    definition: String,
+    government_queue: Option<SavedQueue>,
+    private_queue: Option<SavedQueue>,
+}
 
-impl<'de> Deserialize<'de> for MaybeCountry {
+#[derive(Debug)]
+struct MaybeNone<T>(Option<T>);
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for MaybeNone<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_any(MaybeCountryVisitor)
+        deserializer.deserialize_any(MaybeNoneVisitor(PhantomData))
     }
 }
 
-struct MaybeCountryVisitor;
+struct MaybeNoneVisitor<T>(PhantomData<T>);
 
-impl<'de> Visitor<'de> for MaybeCountryVisitor {
-    type Value = MaybeCountry;
+impl<'de, T: Deserialize<'de>> Visitor<'de> for MaybeNoneVisitor<T> {
+    type Value = MaybeNone<T>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a country or none")
+        formatter.write_str("an object or none")
     }
 
     fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
         match value {
-            "none" => Ok(MaybeCountry(None)),
+            "none" => Ok(MaybeNone(None)),
             other => Err(E::invalid_value(de::Unexpected::Str(other), &self)),
         }
     }
 
-    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        let mut definition = None;
-        while let Some(key) = map.next_key::<String>()? {
-            if key == "definition" {
-                definition = Some(map.next_value::<String>()?);
-            } else {
-                map.next_value::<IgnoredAny>()?;
-            }
-        }
-        Ok(MaybeCountry(definition))
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+        T::deserialize(MapAccessDeserializer::new(map)).map(|value| MaybeNone(Some(value)))
     }
 }
 
@@ -97,7 +99,13 @@ impl Gamestate {
             });
         }
         let game_date = parse_game_date(&self.meta_data.game_date)?;
-        let tag = self.player_tag()?;
+        let (country_id, country) = self.player_country()?;
+        let construction = construction::construction(
+            country_id,
+            country.government_queue.as_ref(),
+            country.private_queue.as_ref(),
+        );
+        let tag = country.definition.clone();
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
@@ -105,10 +113,11 @@ impl Gamestate {
                 tag,
                 name: self.meta_data.name,
             },
+            construction,
         })
     }
 
-    fn player_tag(&self) -> Result<String, Refusal> {
+    fn player_country(&self) -> Result<(u32, &Country), Refusal> {
         let mut players = self.player_manager.database.values();
         let player = match (players.next(), players.next()) {
             (Some(player), None) => player,
@@ -124,7 +133,7 @@ impl Gamestate {
             }
         };
         match self.country_manager.database.get(&player.country) {
-            Some(MaybeCountry(Some(tag))) => Ok(tag.clone()),
+            Some(MaybeNone(Some(country))) => Ok((player.country, country)),
             _ => Err(Refusal::Damaged {
                 detail: format!("the player's country {} is not in the Save", player.country),
             }),
