@@ -1,13 +1,15 @@
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Observation {
     pub reading: Reading,
     pub unit: Unit,
     pub source: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub enum Reading {
     Read(f64),
     Missing,
@@ -21,7 +23,7 @@ pub(crate) fn observe(value: Option<f64>, unit: Unit, source: String) -> Observa
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Unit {
     Pounds,
     PoundsPerWeek,

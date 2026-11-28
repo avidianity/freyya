@@ -1,15 +1,15 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::observation::{Observation, Unit, observe};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Construction {
     pub construction_in_use: Observation,
     pub government_queue: Vec<QueuedConstruction>,
     pub private_queue: Vec<QueuedConstruction>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct QueuedConstruction {
     pub building: String,
     pub state: u32,

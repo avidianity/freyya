@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::buildings_jobs::{Database, SaveBuilding, SaveState};
 use crate::money::Budget;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct GoodsMarket {
     pub market: u32,
     pub owner: Option<String>,
@@ -14,7 +14,7 @@ pub struct GoodsMarket {
     pub goods: Vec<MarketGood>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MarketGood {
     pub good: u16,
     pub price: Observation,
@@ -24,20 +24,20 @@ pub struct MarketGood {
     pub net_exports: Observation,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Observation {
     pub value: Value,
     pub unit: Unit,
     pub source: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Value {
     Read(f64),
     Missing { reason: String },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Unit {
     PoundsPerUnit,
     UnitsPerWeek,

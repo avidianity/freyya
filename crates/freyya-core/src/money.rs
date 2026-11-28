@@ -1,9 +1,9 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::goods_market::GoodAmounts;
 use crate::observation::{Observation, Unit, observe};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Money {
     pub treasury: Observation,
     pub weekly_income: Observation,

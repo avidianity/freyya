@@ -1812,6 +1812,7 @@ name = "freyya-cli"
 version = "0.1.0"
 dependencies = [
  "freyya-core",
+ "serde_json",
 ]
 
 [[package]]

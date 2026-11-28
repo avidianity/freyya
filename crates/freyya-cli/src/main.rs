@@ -1,5 +1,6 @@
 mod buildings_jobs;
 mod config;
+mod measure;
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -15,6 +16,7 @@ fn main() -> ExitCode {
     match command_from_args(std::env::args().skip(1)) {
         Ok(Command::ReadSave { save, rakaly, game }) => print_save(&save, &rakaly, game.as_deref()),
         Ok(Command::CheckGameFiles { game }) => print_game_files_check(&game),
+        Ok(Command::MeasureSave { saves, rakaly }) => measure::print_measurements(&saves, &rakaly),
         Err(problem) => {
             eprintln!("{problem}\n{USAGE}");
             ExitCode::from(64)
