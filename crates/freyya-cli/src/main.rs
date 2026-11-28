@@ -1,3 +1,4 @@
+mod buildings_jobs;
 mod config;
 
 use std::path::Path;
@@ -34,6 +35,7 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
                 "Player country: {} ({})",
                 snapshot.player_country.name, snapshot.player_country.tag
             );
+            buildings_jobs::print_buildings_and_jobs(&snapshot.buildings_and_jobs);
             ExitCode::SUCCESS
         }
         Err(refusal) => {
