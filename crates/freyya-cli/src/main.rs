@@ -3,6 +3,7 @@ mod config;
 use std::path::Path;
 use std::process::ExitCode;
 
+use freyya_core::goods_market::GoodsMarket;
 use freyya_core::{Rakaly, read_save};
 
 use config::{Command, USAGE, command_from_args};
@@ -34,11 +35,42 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
                 "Player country: {} ({})",
                 snapshot.player_country.name, snapshot.player_country.tag
             );
+            print_goods_market(snapshot.goods_market.as_ref());
             ExitCode::SUCCESS
         }
         Err(refusal) => {
             eprintln!("Refused {}: {refusal}", path.display());
             ExitCode::from(65)
         }
+    }
+}
+
+fn print_goods_market(market: Option<&GoodsMarket>) {
+    let Some(market) = market else {
+        println!("Goods market:   missing (the Save names no market for the player's country)");
+        return;
+    };
+    println!(
+        "Goods market:   {} (owner {}; members {})",
+        market.market,
+        market.owner.as_deref().unwrap_or("missing"),
+        market.members.join(", ")
+    );
+    for good in &market.goods {
+        println!("  Good {}", good.good);
+        println!("    Price:                      {}", good.price);
+        println!(
+            "    Sell orders from buildings: {}",
+            good.sell_orders_from_buildings
+        );
+        println!(
+            "    Buy orders from buildings:  {}",
+            good.buy_orders_from_buildings
+        );
+        println!(
+            "    Buy orders from pops:       {}",
+            good.buy_orders_from_pops
+        );
+        println!("    Net exports:                {}", good.net_exports);
     }
 }
