@@ -59,7 +59,7 @@ change checks:
   no-comments --base <rev> [--head <rev>|:index]
   commit-message --file <path> | --range <base>..<head>
   risk-tier --base <rev> --head <rev> [--github-output <path>]
-  evidence-bundle --body-file <path> --head-sha <sha> --tier <n> --repo <owner/name>
+  evidence-bundle --body-file <path> --head-sha <sha> --tier <n> --repo <owner/name> [--ci-run-url <url>]
   behavior-has-test --base <rev> --head <rev> --body-file <path>
 
 agent command guard:

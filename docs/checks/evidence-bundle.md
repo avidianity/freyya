@@ -12,12 +12,13 @@ Kit spec: [checks/evidence-bundle.md](https://github.com/avidianity/factory/blob
 
 ## Implemented by
 
-- Command: `cargo xtask evidence-bundle --body-file <FILE> --head-sha <SHA> --tier <N>`.
+- Command: `cargo xtask evidence-bundle --body-file <FILE> --head-sha <SHA> --tier <N> --repo <OWNER/NAME> [--ci-run-url <URL>]`.
 - It requires the sections Tier, Task, Fail-first test, Checks, Safety proof, Runtime evidence, and Gaps, each with content.
 - It reads only the visible text: HTML comments (`<!-- ... -->`) count as empty.
-- It requires a `Revision:` line with the exact head commit SHA, and no template placeholders or template lines (such as an untouched `<Link to the task ...>` line) left.
+- A `Revision:` line is optional; when present it must be the exact head commit SHA. The policy workflow supplies the head SHA itself, so the body does not have to repeat it after each push (Owner decision, 2026-11-28, to remove manual steps). It requires no template placeholders or template lines (such as an untouched `<Link to the task ...>` line) left.
 - A run URL must point to this repository (`--repo`, from the workflow).
-- Known limits: the check does not ask GitHub whether the run belongs to the head commit, so a made-up run number passes; words like "TODO" count as content; the first `Revision:` line wins. The Independent reviewer and the Owner read the bundle too.
+- The policy workflow asks GitHub for the `ci` run of the head commit and passes its URL as `--ci-run-url`; that run proves the Safety proof for Tier 2 and above, so the body needs no link. A link in the body still works.
+- Known limits: a run link written in the body is not checked against GitHub, so a made-up run number in the body passes; words like "TODO" count as content; the first `Revision:` line wins. The Independent reviewer and the Owner read the bundle too.
 - From Tier 2, the Safety proof and the Runtime evidence each hold a `https://github.com/<OWNER>/<REPO>/actions/runs/<ID>` link and the first seven characters of the head SHA; the Runtime evidence may instead start with "Not applicable:" and a reason; Tier 2 may say "unproven" in the Safety proof only when the Gaps section lists it.
 - Template: `.github/pull_request_template.md`, from [docs/templates/pr-evidence.md](../templates/pr-evidence.md).
 

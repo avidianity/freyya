@@ -7,7 +7,7 @@ Closes #<issue>
 ## Tier
 
 Tier <n> from the tier check: <the rule that matched>.
-Revision: `<exact head commit SHA>`
+Revision: `<exact head commit SHA, optional: the policy workflow checks the head itself>`
 
 ## Task
 
@@ -35,7 +35,7 @@ Revision: `<exact head commit SHA>`
 ## Safety proof
 
 - Safety fact: <the one fact the change is safe because of>
-- Proof artifact: <link to revision-stamped CI log, script output, or verifier artifact; or "unproven">
+- Proof artifact: <the policy workflow adds the ci run of the head commit; add other revision-stamped artifacts here, or "unproven">
 - `interrogate`: <none run below Tier 3; or each verified finding, its fix, and the clean rerun>
 
 <Or: "Not applicable: Tier 0 or 1.">
