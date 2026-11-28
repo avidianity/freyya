@@ -19,7 +19,7 @@ Two topics have their own notes, and this report only sums them up: the [telemet
   Market shortage Advice needs more work first.
 - The telemetry mod is not worth a test now.
 - AI is cheap: the chosen starting model costs about 0.01 USD per day at normal use.
-- Next step: unify the Observation types, then join Snapshot and Game files for Estimates, then history and alerts.
+- Next step: join Snapshot and Game files for Estimates, then history and alerts.
 
 ## Save reader
 
@@ -65,6 +65,8 @@ Later on 2026-11-28 the Owner played on, and the autosaves moved to 1838 (see [F
 | Modded | `meta_data.mods` lists one or more mods. |
 | ReaderUnavailable | The Rakaly CLI cannot be started. |
 
+Each Damaged and ReaderUnavailable refusal keeps the original error as its cause, so `std::error::Error::source` returns it.
+
 The `mods` field name comes from Pdx-Unlimiter's Victoria 3 editor adapter, which reads `meta_data.mods` and `meta_data.dlcs` ([crschnick/pdx_unlimiter](https://github.com/crschnick/pdx_unlimiter), read 2026-11-28).
 The Owner's vanilla Saves have neither field, so a hand-made text Save covers the modded case.
 
@@ -72,6 +74,7 @@ The Owner's vanilla Saves have neither field, so a hand-made text Save covers th
 
 1. Download `rakaly-0.8.26-x86_64-pc-windows-msvc.zip` from the [0.8.26 release](https://github.com/rakaly/cli/releases/tag/v0.8.26); its SHA-256 is `717aee5d3a2bd67455f77fed6f26ec2aaa6866832fb15baaced0161a00e604dd`.
 2. Put `rakaly.exe` on `PATH`, or pass `--rakaly <PATH>`.
+   `freyya-cli` stops at startup with a clear message when it cannot find Rakaly or the game folder.
 3. Run:
 
 ```text
@@ -99,7 +102,7 @@ Refused Cargo.lock: the Save is damaged: not a Victoria 3 Save: Invalid header
 Tickets: [#9](https://github.com/avidianity/freyya/issues/9) money, [#10](https://github.com/avidianity/freyya/issues/10) goods market, [#11](https://github.com/avidianity/freyya/issues/11) buildings and jobs, [#12](https://github.com/avidianity/freyya/issues/12) construction, [#13](https://github.com/avidianity/freyya/issues/13) Game files.
 Source Save: `sweden_1837_08_16.v3`, Sweden (country id 24), read on 2026-11-28.
 Each Observation carries a unit and its source field in the Save.
-A value that the Save lacks shows as "missing", never as 0.
+A value that the Save lacks shows as "missing", with a reason when freyya knows one, never as 0.
 Run `cargo run -q -p freyya-cli -- read-save <SAVE>` to print every Observation.
 
 ### Money
@@ -131,6 +134,7 @@ Run `cargo run -q -p freyya-cli -- read-save <SAVE>` to print every Observation.
 - `market_manager.database` holds only the owner; it has no prices and no orders.
 - The Save has no total of buy orders or sell orders per market.
 - The Save stores pop spending as money (`weekly_budget`), not as goods, so pop demand is missing.
+- A good with no entry in any building's goods list or any state's trade list shows its orders or net exports as missing, not as 0.
 - The Save names each good by a number: its position in `common/goods/00_goods.txt` (0 ammunition, 7 grain, 25 iron, 35 tools; 54 goods).
 
 ### Buildings
@@ -192,6 +196,15 @@ laws                pass  148 definitions, all named
 pop needs           pass  15 definitions, all named
 defines             pass  3591 defines
 state regions       pass  782 definitions, all named
+Catalog:    version 1.15.2
+  goods               54
+  buildings           122
+  production methods  450
+  technologies        179
+  laws                148
+  pop needs           15
+  state regions       782
+  defines             3591
 ```
 
 - The catalog reads the version from `launcher/launcher-settings.json` (`rawVersion`).
@@ -335,7 +348,10 @@ The game calculates these and does not write them to the Save:
 
 - `freyya-core` is the headless core: a library with no screen code.
   It holds Save reading, the Game files catalog, Snapshot areas, and the "already read" check.
-- Public entry points: `read_save` (Save to Snapshot or a typed refusal), `read_game_files`, `check_game_files`, and `SaveReader`.
+- Public entry points: `read_save` (Save to Snapshot or a typed refusal), `SaveReader` (the same call, which also recognises a Save already read), `read_game_files`, and `check_game_files`.
+- The area modules are private. The core exports only the Snapshot types and one `Observation` type.
+  Each Observation has a `Reading` (a read value, or missing with an optional reason), one `Unit`, and its source in the Save.
+  The CLI shows every Observation through the same display.
 - `freyya-cli` drives the core from the command line for every investigation step.
 - `freyya` is the gpui window (gpui is the screen toolkit).
   It stays a thin screen that calls the core and never reads the Save itself.
@@ -354,15 +370,10 @@ Add these layers to the core, in this order, each behind a small public call:
 - **Rakaly and withheld tokens.**
   Paradox does not publish the token list, so only Rakaly decodes binary Saves (see [Risks](#risks)).
   No other way to read binary Saves is verified.
-- **Three Observation types.**
-  Parallel Tickets made `crate::Observation`, `buildings_jobs::Observation<T>`, and `goods_market::Observation`.
-  Only the goods market type gives a reason for a missing value; unify them before more areas arrive.
 - **Modded-Save check unverified.**
   Freyya refuses a Save that lists `meta_data.mods`, but this key comes from another tool and was tested only on a hand-made Save.
 - **Live screen values.**
   Income, balance, prices, and market orders differ from the screen; the cause is a guess until a second UI check.
-- **AI cost note uses an old value.**
-  Its construction summary shows capacity 25; the UI check proved 15.
 - **One early Save only.**
   Late-game size, time, memory, and debt cases are not tested on a real Save.
 - **Vacancies** have no checked source.
@@ -374,20 +385,19 @@ Add these layers to the core, in this order, each behind a small public call:
 
 Each step is one small Ticket that the Owner can approve alone.
 
-1. Unify the three Observation types into one, with a reason for each missing value.
-2. Read values into the catalog: base prices, construction costs, production methods, jobs per level, `traded_quantity`.
-3. Market view: join Snapshot and catalog for exports, imports, and price against base.
-4. Show credit limit, investment pool, and building profit fields; check them on screen.
-5. Second UI check after a weekly tick, plus a vacancies screen and one Philippines Save.
-6. Commit the chosen fixtures and assert their checked values in tests.
-7. Snapshot history in the local app-data folder.
-8. Alert rules for money and construction, the two areas that match the screen.
-9. Estimates: construction capacity, time to finish, unfilled jobs.
-10. Alert rules for jobs, buildings, and goods markets.
-11. Candidate actions for "build one more level", with Estimates and a fixed ranking.
-12. gpui screens over the same calls.
-13. Save watcher, with Owner permission to run it.
-14. Optional AI adapter with DeepSeek Flash on OpenRouter, and the settings page.
+1. Read values into the catalog: base prices, construction costs, production methods, jobs per level, `traded_quantity`.
+2. Market view: join Snapshot and catalog for exports, imports, and price against base.
+3. Show credit limit, investment pool, and building profit fields; check them on screen.
+4. Second UI check after a weekly tick, plus a vacancies screen and one Philippines Save.
+5. Commit the chosen fixtures and assert their checked values in tests.
+6. Snapshot history in the local app-data folder.
+7. Alert rules for money and construction, the two areas that match the screen.
+8. Estimates: construction capacity, time to finish, unfilled jobs.
+9. Alert rules for jobs, buildings, and goods markets.
+10. Candidate actions for "build one more level", with Estimates and a fixed ranking.
+11. gpui screens over the same calls.
+12. Save watcher, with Owner permission to run it.
+13. Optional AI adapter with DeepSeek Flash on OpenRouter, and the settings page.
 
 Decisions left to the Owner after this report: the AI budget, model routing, where the AI key lives, and feature order.
 
