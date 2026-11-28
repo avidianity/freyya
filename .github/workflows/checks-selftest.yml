@@ -1,0 +1,38 @@
+name: checks-selftest
+
+on:
+  pull_request:
+    paths:
+      - "xtask/**"
+      - "policy/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - ".cargo/**"
+      - "rust-toolchain.toml"
+      - "lefthook.yml"
+  push:
+    branches: [main]
+    paths:
+      - "xtask/**"
+      - "policy/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - ".cargo/**"
+      - "rust-toolchain.toml"
+      - "lefthook.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  xtask:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install the pinned toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+      - name: Check-script tests
+        run: cargo test --package xtask --locked

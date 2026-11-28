@@ -1,0 +1,26 @@
+default = 2
+
+[[rule]]
+tier = 0
+reason = "documentation"
+paths = ["**/*.md"]
+
+[[rule]]
+tier = 3
+reason = "agent rules and skills"
+paths = [".rules", "CLAUDE.md", "AGENTS.md", "docs/agents/**", "docs/checks/**", ".agents/**", ".claude/**", "skills-lock.json", "**/RULES.md"]
+
+[[rule]]
+tier = 3
+reason = "CI, checks, and policy"
+paths = [".github/**", "xtask/**", "policy/**", "lefthook*.yml", ".lefthook*.yml", "**/.cargo/**", "Cargo.toml", "**/rust-toolchain*", "**/rustfmt.toml", "**/.rustfmt.toml", "**/clippy.toml", "**/.clippy.toml", "**/.markdownlint*", ".gitleaks.toml", ".gitleaksignore", ".gitattributes", ".gitignore"]
+
+[[rule]]
+tier = 3
+reason = "review mode and standing decisions"
+paths = ["docs/adr/*review-mode*.md", "docs/adr/*standing-decisions*.md"]
+
+[[rule]]
+tier = 3
+reason = "stored history schema"
+paths = ["**/migrations/**"]

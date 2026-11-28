@@ -1,0 +1,27 @@
+# no-dead-code
+
+**Invariant**:
+A pull request adds no dead symbol.
+A dead symbol is a file, function, type, constant, export, or dependency that nothing reachable from a Project entry point uses.
+The exported API of a published package is an entry point.
+A symbol in application code that only tests use is dead.
+
+The check compares the dead symbols on the pull request head with those on the base branch.
+It fails when the head has a dead symbol that the base branch lacks, wherever that symbol is.
+
+Kit spec: [checks/no-dead-code.md](https://github.com/avidianity/factory/blob/v0.9.0/checks/no-dead-code.md).
+
+## Implemented by
+
+- The compiler: `[workspace.lints]` in `Cargo.toml` sets `dead_code`, `unused`, and all warnings to deny.
+- Command: `cargo clippy --workspace --locked` without test targets, so a symbol that only tests use is dead.
+- `unreachable_pub` is denied too: freyya publishes no package, so a `pub` item must be `pub(crate)`, and the compiler then reports it when nothing uses it.
+- Command: `cargo xtask no-dead-code` rejects a `pub` item, a `pub use` re-export, or a `#[macro_export]` macro at the root of a binary (`src/main.rs` or `src/bin/`), where neither lint can see it.
+- Open: unused dependencies and orphan files that no module declares have no tool yet.
+
+Runs in: CI.
+
+## Known limits
+
+- Code under a `cfg` that never holds, such as `#[cfg(any())]`, is invisible to the compiler.
+- An unused `pub` item of a library crate that the workspace shares is part of that crate's API, so the compiler does not report it; no tool covers this yet.
