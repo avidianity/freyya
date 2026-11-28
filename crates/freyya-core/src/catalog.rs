@@ -6,6 +6,8 @@ use jomini::text::ValueReader;
 use jomini::{DeserializeError, Encoding, TextTape};
 use serde::Deserialize;
 
+use crate::Cause;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Catalog {
     pub game_version: String,
@@ -58,22 +60,58 @@ impl Catalog {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum CatalogRefusal {
-    Unreadable { path: PathBuf, detail: String },
+    Unreadable {
+        path: PathBuf,
+        detail: Option<String>,
+        cause: Cause,
+    },
+}
+
+impl CatalogRefusal {
+    fn unreadable(path: &Path, cause: impl Into<Cause>) -> Self {
+        CatalogRefusal::Unreadable {
+            path: path.to_path_buf(),
+            detail: None,
+            cause: cause.into(),
+        }
+    }
+
+    fn unreadable_because(path: &Path, detail: String, cause: impl Into<Cause>) -> Self {
+        CatalogRefusal::Unreadable {
+            path: path.to_path_buf(),
+            detail: Some(detail),
+            cause: cause.into(),
+        }
+    }
 }
 
 impl fmt::Display for CatalogRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CatalogRefusal::Unreadable { path, detail } => {
-                write!(f, "cannot read {}: {detail}", path.display())
+            CatalogRefusal::Unreadable {
+                path,
+                detail,
+                cause,
+            } => {
+                write!(f, "cannot read {}: ", path.display())?;
+                if let Some(detail) = detail {
+                    write!(f, "{detail}: ")?;
+                }
+                write!(f, "{cause}")
             }
         }
     }
 }
 
-impl std::error::Error for CatalogRefusal {}
+impl std::error::Error for CatalogRefusal {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            CatalogRefusal::Unreadable { cause, .. } => Some(cause.as_ref()),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Area {
@@ -192,7 +230,7 @@ pub fn check_game_files(game_folder: &Path) -> Vec<AreaCheck> {
             let path = area.path(game_folder);
             let verdict = match area {
                 Area::Version => verdict(read_game_version(&path), Ok),
-                Area::EnglishNames => verdict(names.clone(), |names| {
+                Area::EnglishNames => verdict(names.as_ref(), |names| {
                     if names.is_empty() {
                         Err("no English names found".to_owned())
                     } else {
@@ -217,8 +255,8 @@ pub fn check_game_files(game_folder: &Path) -> Vec<AreaCheck> {
         .collect()
 }
 
-fn verdict<T>(
-    read: Result<T, CatalogRefusal>,
+fn verdict<T, E: fmt::Display>(
+    read: Result<T, E>,
     judge: impl FnOnce(T) -> Result<String, String>,
 ) -> Verdict {
     match read.map_err(|refusal| refusal.to_string()).and_then(judge) {
@@ -256,26 +294,33 @@ fn read_defines(folder: &Path) -> Result<Vec<Define>, CatalogRefusal> {
             .into_iter()
             .map(|(key, _, value)| Ok((key.read_string(), define_value(&value)?)))
             .collect::<Result<HashMap<_, _>, DeserializeError>>()
-            .map_err(|error| CatalogRefusal::Unreadable {
-                path: path.clone(),
-                detail: format!("a script variable has no plain value: {error}"),
+            .map_err(|error| {
+                CatalogRefusal::unreadable_because(
+                    &path,
+                    "a script variable has no plain value".to_owned(),
+                    error,
+                )
             })?;
         for (namespace, _, block) in namespaces {
             let namespace = namespace.read_string();
-            let block = block
-                .read_object()
-                .map_err(|error| CatalogRefusal::Unreadable {
-                    path: path.clone(),
-                    detail: format!("define namespace {namespace} is not a block: {error}"),
-                })?;
+            let block = block.read_object().map_err(|error| {
+                CatalogRefusal::unreadable_because(
+                    &path,
+                    format!("define namespace {namespace} is not a block"),
+                    error,
+                )
+            })?;
             for (key, _, value) in block.fields() {
                 let key = key.read_string();
                 if key.starts_with('@') {
                     continue;
                 }
-                let value = define_value(&value).map_err(|error| CatalogRefusal::Unreadable {
-                    path: path.clone(),
-                    detail: format!("define {namespace}.{key} has no plain value: {error}"),
+                let value = define_value(&value).map_err(|error| {
+                    CatalogRefusal::unreadable_because(
+                        &path,
+                        format!("define {namespace}.{key} has no plain value"),
+                        error,
+                    )
                 })?;
                 let value = variables.get(&value).cloned().unwrap_or(value);
                 defines.push(Define {
@@ -304,10 +349,7 @@ fn define_value<E: Encoding + Clone>(
 }
 
 fn parse_script<'a>(path: &Path, text: &'a [u8]) -> Result<TextTape<'a>, CatalogRefusal> {
-    TextTape::from_slice(text).map_err(|error| CatalogRefusal::Unreadable {
-        path: path.to_path_buf(),
-        detail: error.to_string(),
-    })
+    TextTape::from_slice(text).map_err(|error| CatalogRefusal::unreadable(path, error))
 }
 
 #[derive(Deserialize)]
@@ -318,11 +360,9 @@ struct LauncherSettings {
 
 fn read_game_version(path: &Path) -> Result<String, CatalogRefusal> {
     let text = read_file(path)?;
-    let settings: LauncherSettings =
-        serde_json::from_slice(&text).map_err(|error| CatalogRefusal::Unreadable {
-            path: path.to_path_buf(),
-            detail: format!("no game version: {error}"),
-        })?;
+    let settings: LauncherSettings = serde_json::from_slice(&text).map_err(|error| {
+        CatalogRefusal::unreadable_because(path, "no game version".to_owned(), error)
+    })?;
     Ok(settings.raw_version)
 }
 
@@ -350,10 +390,8 @@ fn read_english_names(folder: &Path) -> Result<HashMap<String, String>, CatalogR
     let mut names = HashMap::new();
     for path in files_with_extension(folder, "yml")? {
         let bytes = read_file(&path)?;
-        let text = String::from_utf8(bytes).map_err(|error| CatalogRefusal::Unreadable {
-            path: path.clone(),
-            detail: error.to_string(),
-        })?;
+        let text =
+            String::from_utf8(bytes).map_err(|error| CatalogRefusal::unreadable(&path, error))?;
         names.extend(text.lines().filter_map(localization_entry));
     }
     Ok(names)
@@ -377,16 +415,11 @@ fn files_with_extension(folder: &Path, extension: &str) -> Result<Vec<PathBuf>, 
     let mut files = Vec::new();
     let mut pending = vec![folder.to_path_buf()];
     while let Some(dir) = pending.pop() {
-        let entries = std::fs::read_dir(&dir).map_err(|error| CatalogRefusal::Unreadable {
-            path: dir.clone(),
-            detail: error.to_string(),
-        })?;
+        let entries =
+            std::fs::read_dir(&dir).map_err(|error| CatalogRefusal::unreadable(&dir, error))?;
         for entry in entries {
             let path = entry
-                .map_err(|error| CatalogRefusal::Unreadable {
-                    path: dir.clone(),
-                    detail: error.to_string(),
-                })?
+                .map_err(|error| CatalogRefusal::unreadable(&dir, error))?
                 .path();
             if path.is_dir() {
                 pending.push(path);
@@ -400,8 +433,5 @@ fn files_with_extension(folder: &Path, extension: &str) -> Result<Vec<PathBuf>, 
 }
 
 fn read_file(path: &Path) -> Result<Vec<u8>, CatalogRefusal> {
-    std::fs::read(path).map_err(|error| CatalogRefusal::Unreadable {
-        path: path.to_path_buf(),
-        detail: error.to_string(),
-    })
+    std::fs::read(path).map_err(|error| CatalogRefusal::unreadable(path, error))
 }

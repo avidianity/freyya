@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::goods_market::{self, MarketCountry, MarketSections};
 use crate::save::{SaveCountry, SaveGamestate};
 use crate::{GameDate, Money, PlayerCountry, Refusal, Snapshot, buildings_jobs, construction};
@@ -70,16 +72,8 @@ fn player_country(save: &SaveGamestate) -> Result<(u32, &SaveCountry, &str), Ref
     let mut players = save.player_manager.entries().map(|(_, player)| player);
     let player = match (players.next(), players.next()) {
         (Some(player), None) => player,
-        (None, _) => {
-            return Err(Refusal::Damaged {
-                detail: "the Save names no player".to_owned(),
-            });
-        }
-        (Some(_), Some(_)) => {
-            return Err(Refusal::Damaged {
-                detail: "the Save names more than one player".to_owned(),
-            });
-        }
+        (None, _) => return Err(Refusal::damaged("the Save names no player")),
+        (Some(_), Some(_)) => return Err(Refusal::damaged("the Save names more than one player")),
     };
     match save.country_manager.get(player.country) {
         Some(
@@ -88,20 +82,32 @@ fn player_country(save: &SaveGamestate) -> Result<(u32, &SaveCountry, &str), Ref
                 ..
             },
         ) => Ok((player.country, country, tag)),
-        _ => Err(Refusal::Damaged {
-            detail: format!("the player's country {} is not in the Save", player.country),
-        }),
+        _ => Err(Refusal::damaged(format!(
+            "the player's country {} is not in the Save",
+            player.country
+        ))),
     }
 }
 
 fn parse_game_date(text: &str) -> Result<GameDate, Refusal> {
-    let invalid = || Refusal::Damaged {
-        detail: format!("the game date {text:?} is not a date"),
-    };
     let mut parts = text.split('.');
-    let mut next = || parts.next().ok_or_else(invalid);
-    let year = next()?.parse().map_err(|_| invalid())?;
-    let month = next()?.parse().map_err(|_| invalid())?;
-    let day = next()?.parse().map_err(|_| invalid())?;
-    Ok(GameDate { year, month, day })
+    Ok(GameDate {
+        year: date_part(text, parts.next())?,
+        month: date_part(text, parts.next())?,
+        day: date_part(text, parts.next())?,
+    })
+}
+
+fn date_part<T>(text: &str, part: Option<&str>) -> Result<T, Refusal>
+where
+    T: FromStr,
+    T::Err: std::error::Error + Send + Sync + 'static,
+{
+    let detail = format!("the game date {text:?} is not a date");
+    match part {
+        Some(part) => part
+            .parse()
+            .map_err(|error| Refusal::damaged_by(detail, error)),
+        None => Err(Refusal::damaged(detail)),
+    }
 }

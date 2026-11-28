@@ -26,14 +26,11 @@ pub(crate) struct SaveGamestate {
 
 impl SaveGamestate {
     pub(crate) fn parse(melted: &[u8]) -> Result<Self, Refusal> {
-        let mut file = JominiTextFile::from_reader(melted).map_err(|error| Refusal::Damaged {
-            detail: format!("the decoded Save has no text header: {error}"),
-        })?;
-        file.deserializer()
-            .deserialize()
-            .map_err(|error| Refusal::Damaged {
-                detail: format!("the decoded Save does not have the expected shape: {error}"),
-            })
+        let mut file = JominiTextFile::from_reader(melted)
+            .map_err(|error| Refusal::damaged_by("the decoded Save has no text header", error))?;
+        file.deserializer().deserialize().map_err(|error| {
+            Refusal::damaged_by("the decoded Save does not have the expected shape", error)
+        })
     }
 }
 

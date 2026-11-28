@@ -165,6 +165,15 @@ fn catalog_refuses_a_game_file_it_cannot_parse_and_names_it() {
     assert!(path.ends_with("01_more_goods.txt"), "{}", path.display());
 }
 
+#[test]
+fn catalog_refusal_keeps_the_original_error_as_its_cause() {
+    let folder = game_folder("broken-cause", &[BROKEN_GOODS]);
+
+    let refusal = read_game_files(&folder).expect_err("a broken goods file is refused");
+
+    assert!(std::error::Error::source(&refusal).is_some(), "{refusal}");
+}
+
 fn verdicts(folder: &std::path::Path) -> Vec<(String, bool)> {
     check_game_files(folder)
         .into_iter()

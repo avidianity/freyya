@@ -22,7 +22,7 @@ pub use money::Money;
 pub use observation::{Observation, Reading, Unit};
 pub use rakaly::Rakaly;
 pub use save_reader::{SaveRead, SaveReader};
-pub use snapshot::{GameDate, PlayerCountry, Refusal, Snapshot};
+pub use snapshot::{Cause, GameDate, PlayerCountry, Refusal, Snapshot};
 
 pub fn read_save(save: &[u8], rakaly: &Rakaly) -> Result<Snapshot, Refusal> {
     read_save_timed(save, rakaly).map(|(snapshot, _)| snapshot)

@@ -33,11 +33,9 @@ fn save_from_unchecked_game_version_is_refused() {
 
     let refusal = read_save(&save, &rakaly()).expect_err("an unchecked version is refused");
 
-    assert_eq!(
-        refusal,
-        Refusal::UnsupportedVersion {
-            version: "1.16.0".to_owned()
-        }
+    assert!(
+        matches!(&refusal, Refusal::UnsupportedVersion { version } if version == "1.16.0"),
+        "got {refusal:?}"
     );
 }
 
@@ -47,11 +45,9 @@ fn save_with_active_mods_is_refused_and_names_them() {
 
     let refusal = read_save(&save, &rakaly()).expect_err("a modded Save is refused");
 
-    assert_eq!(
-        refusal,
-        Refusal::Modded {
-            mods: vec!["Better Economy".to_owned(), "More Goods".to_owned()]
-        }
+    assert!(
+        matches!(&refusal, Refusal::Modded { mods } if mods == &["Better Economy", "More Goods"]),
+        "got {refusal:?}"
     );
 }
 
@@ -79,7 +75,7 @@ fn truncated_save_is_refused_as_incomplete() {
 
     let refusal = read_save(first_half, &rakaly()).expect_err("a cut Save is refused");
 
-    assert_eq!(refusal, Refusal::Incomplete);
+    assert!(matches!(refusal, Refusal::Incomplete), "got {refusal:?}");
 }
 
 #[test]
@@ -93,6 +89,18 @@ fn save_with_overwritten_bytes_is_refused_as_damaged() {
     assert!(
         matches!(refusal, Refusal::Damaged { .. }),
         "got {refusal:?}"
+    );
+}
+
+#[test]
+fn refusal_of_a_damaged_save_keeps_the_original_error_as_its_cause() {
+    let refusal = read_save(b"not a save at all", &rakaly())
+        .expect_err("a file that is not a Save is refused");
+
+    let cause = std::error::Error::source(&refusal).expect("the refusal keeps its cause");
+    assert!(
+        refusal.to_string().ends_with(&cause.to_string()),
+        "{refusal}"
     );
 }
 

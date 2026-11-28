@@ -36,19 +36,75 @@ pub struct PlayerCountry {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+pub type Cause = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+#[derive(Debug)]
 pub enum Refusal {
-    Damaged { detail: String },
+    Damaged {
+        detail: String,
+        cause: Option<Cause>,
+    },
     Incomplete,
-    UnsupportedVersion { version: String },
-    Modded { mods: Vec<String> },
-    ReaderUnavailable { detail: String },
+    UnsupportedVersion {
+        version: String,
+    },
+    Modded {
+        mods: Vec<String>,
+    },
+    ReaderUnavailable {
+        detail: String,
+        cause: Option<Cause>,
+    },
+}
+
+impl Refusal {
+    pub(crate) fn damaged(detail: impl Into<String>) -> Self {
+        Refusal::Damaged {
+            detail: detail.into(),
+            cause: None,
+        }
+    }
+
+    pub(crate) fn damaged_by(detail: impl Into<String>, cause: impl Into<Cause>) -> Self {
+        Refusal::Damaged {
+            detail: detail.into(),
+            cause: Some(cause.into()),
+        }
+    }
+
+    pub(crate) fn reader_unavailable(detail: impl Into<String>) -> Self {
+        Refusal::ReaderUnavailable {
+            detail: detail.into(),
+            cause: None,
+        }
+    }
+
+    pub(crate) fn reader_unavailable_by(
+        detail: impl Into<String>,
+        cause: impl Into<Cause>,
+    ) -> Self {
+        Refusal::ReaderUnavailable {
+            detail: detail.into(),
+            cause: Some(cause.into()),
+        }
+    }
+}
+
+fn write_detail(f: &mut fmt::Formatter<'_>, detail: &str, cause: Option<&Cause>) -> fmt::Result {
+    f.write_str(detail)?;
+    match cause {
+        Some(cause) => write!(f, ": {cause}"),
+        None => Ok(()),
+    }
 }
 
 impl fmt::Display for Refusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Refusal::Damaged { detail } => write!(f, "the Save is damaged: {detail}"),
+            Refusal::Damaged { detail, cause } => {
+                f.write_str("the Save is damaged: ")?;
+                write_detail(f, detail, cause.as_ref())
+            }
             Refusal::Incomplete => write!(
                 f,
                 "the Save is incomplete: its end is missing, so it may still be being written"
@@ -62,11 +118,23 @@ impl fmt::Display for Refusal {
                 "the Save has mods active ({}); freyya supports only vanilla Saves",
                 mods.join(", ")
             ),
-            Refusal::ReaderUnavailable { detail } => {
-                write!(f, "the Save reader (Rakaly CLI) could not run: {detail}")
+            Refusal::ReaderUnavailable { detail, cause } => {
+                f.write_str("the Save reader (Rakaly CLI) could not run: ")?;
+                write_detail(f, detail, cause.as_ref())
             }
         }
     }
 }
 
-impl std::error::Error for Refusal {}
+impl std::error::Error for Refusal {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Refusal::Damaged { cause, .. } | Refusal::ReaderUnavailable { cause, .. } => {
+                cause.as_deref().map(|cause| cause as _)
+            }
+            Refusal::Incomplete | Refusal::UnsupportedVersion { .. } | Refusal::Modded { .. } => {
+                None
+            }
+        }
+    }
+}
