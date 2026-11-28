@@ -7,6 +7,7 @@ pub mod goods_market;
 mod money;
 mod observation;
 mod rakaly;
+mod save_reader;
 mod snapshot;
 
 pub use catalog::{
@@ -17,6 +18,7 @@ pub use construction::{Construction, QueuedConstruction};
 pub use money::Money;
 pub use observation::{Observation, Reading, Unit};
 pub use rakaly::Rakaly;
+pub use save_reader::{SaveRead, SaveReader};
 pub use snapshot::{GameDate, PlayerCountry, Refusal, Snapshot};
 
 pub fn read_save(save: &[u8], rakaly: &Rakaly) -> Result<Snapshot, Refusal> {
