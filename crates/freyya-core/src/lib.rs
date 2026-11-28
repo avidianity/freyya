@@ -1,5 +1,6 @@
 mod envelope;
 mod gamestate;
+pub mod goods_market;
 mod rakaly;
 mod snapshot;
 
