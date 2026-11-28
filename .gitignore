@@ -1,5 +1,6 @@
 /target/
 *.v3
+!fixtures/saves/*.v3
 .env
 .env.*
 /.claude/settings.local.json
