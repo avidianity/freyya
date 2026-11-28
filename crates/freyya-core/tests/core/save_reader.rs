@@ -1,21 +1,13 @@
-use freyya_core::{Rakaly, Refusal, SaveRead, SaveReader};
+use freyya_core::{Refusal, SaveRead, SaveReader};
+
+use crate::helpers::{rakaly, text_save, unavailable_rakaly};
 
 fn hand_made_text_save(game_date: &str) -> Vec<u8> {
-    format!(
-        "SAV01000000000000000000\n\
-         meta_data={{\n\
-         \tversion=\"1.15.2\"\n\
-         \tgame_date={game_date}\n\
-         \tname=\"Testland\"\n\
-         }}\n\
-         country_manager={{ database={{ 0=none 7={{ definition=\"TST\" capital=1 }} }} }}\n\
-         player_manager={{ database={{ 0={{ user=\"tester\" country=7 }} }} }}\n"
+    text_save(
+        &format!("version=\"1.15.2\" game_date={game_date} name=\"Testland\""),
+        "capital=1",
+        "",
     )
-    .into_bytes()
-}
-
-fn unavailable_reader() -> Rakaly {
-    Rakaly::at("freyya-test-no-such-save-reader")
 }
 
 #[test]
@@ -24,10 +16,10 @@ fn reading_the_same_save_twice_processes_it_once() {
     let mut reader = SaveReader::new();
 
     let first = reader
-        .read(&save, &Rakaly::on_path())
+        .read(&save, &rakaly())
         .expect("the Save is read the first time");
     let second = reader
-        .read(&save, &unavailable_reader())
+        .read(&save, &unavailable_rakaly())
         .expect("the Save already read is recognised without the Save reader");
 
     let SaveRead::New(first) = first else {
@@ -44,11 +36,11 @@ fn reading_the_same_save_twice_processes_it_once() {
 fn a_save_with_different_content_is_processed_again() {
     let mut reader = SaveReader::new();
     reader
-        .read(&hand_made_text_save("1840.3.9.6"), &Rakaly::on_path())
+        .read(&hand_made_text_save("1840.3.9.6"), &rakaly())
         .expect("the first Save is read");
 
     let refusal = reader
-        .read(&hand_made_text_save("1840.3.16.6"), &unavailable_reader())
+        .read(&hand_made_text_save("1840.3.16.6"), &unavailable_rakaly())
         .expect_err("a different Save needs the Save reader");
 
     assert!(matches!(refusal, Refusal::ReaderUnavailable { .. }));
@@ -59,11 +51,11 @@ fn a_refused_save_is_not_remembered() {
     let mut reader = SaveReader::new();
     let save = hand_made_text_save("1840.3.9.6");
     reader
-        .read(&save, &unavailable_reader())
+        .read(&save, &unavailable_rakaly())
         .expect_err("the Save reader is missing");
 
     let read = reader
-        .read(&save, &Rakaly::on_path())
+        .read(&save, &rakaly())
         .expect("the Save is read once the Save reader is available");
 
     assert!(matches!(read, SaveRead::New(_)));

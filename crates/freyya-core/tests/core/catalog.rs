@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use freyya_core::{CatalogRefusal, check_game_files, read_game_files};
 
+use crate::helpers::empty_temp_folder;
+
 const TINY_GAME: &[(&str, &str)] = &[
     (
         "launcher/launcher-settings.json",
@@ -50,10 +52,7 @@ const TINY_GAME: &[(&str, &str)] = &[
 ];
 
 fn game_folder(test: &str, changes: &[(&str, Option<&str>)]) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("freyya-catalog-{}-{test}", std::process::id()));
-    if root.exists() {
-        std::fs::remove_dir_all(&root).expect("an old test folder is removable");
-    }
+    let root = empty_temp_folder(&format!("catalog-{test}"));
     let mut files: Vec<(&str, Option<&str>)> = TINY_GAME
         .iter()
         .map(|(path, text)| (*path, Some(*text)))

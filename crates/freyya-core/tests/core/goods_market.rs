@@ -1,6 +1,7 @@
 use freyya_core::goods_market::{GoodsMarket, MarketGood};
 use freyya_core::{Observation, Reading, Unit};
-use freyya_core::{Rakaly, read_save};
+
+use crate::helpers::{player_save, read_manual_save, read_text_save};
 
 const TANKS: u16 = 3;
 const GRAIN: u16 = 7;
@@ -9,13 +10,7 @@ const IRON: u16 = 25;
 const TOOLS: u16 = 35;
 
 fn manual_save_market() -> GoodsMarket {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../fixtures/saves/sweden_1837_08_16.v3"
-    );
-    let save = std::fs::read(path).expect("the manual Save fixture is readable");
-    read_save(&save, &Rakaly::on_path())
-        .expect("the manual Save is read")
+    read_manual_save()
         .goods_market
         .expect("the manual Save names the player's market")
 }
@@ -105,26 +100,24 @@ fn manual_save_gives_net_exports_of_the_players_market() {
 }
 
 fn hand_made_market_save(country: &str) -> Vec<u8> {
-    format!(
-        "SAV01000000000000000000\n\
-         meta_data={{ version=\"1.15.2\" game_date=1840.3.9.6 name=\"Testland\" }}\n\
-         country_manager={{ database={{ 0=none 7={{ definition=\"TST\" {country} }} }} }}\n\
-         states={{ database={{ 0=none 1={{ country=7 region=\"STATE_TEST\" }} }} }}\n\
-         market_manager={{ database={{ 3={{ owner=7 }} }} }}\n\
-         building_manager={{ database={{ 0=none 5={{ building=\"building_textile_mill\" state=1 \
-         output_goods={{ behavior=keep_zeros goods={{ 12={{ value=5.5 }} }} }} }} }} }}\n\
-         player_manager={{ database={{ 0={{ user=\"tester\" country=7 }} }} }}\n"
+    player_save(
+        country,
+        "states={ database={ 0=none 1={ country=7 region=\"STATE_TEST\" } } }\n\
+         market_manager={ database={ 3={ owner=7 } } }\n\
+         building_manager={ database={ 0=none 5={ building=\"building_textile_mill\" state=1 \
+         output_goods={ behavior=keep_zeros goods={ 12={ value=5.5 } } } } } }",
     )
-    .into_bytes()
+}
+
+fn hand_made_market(country: &str) -> GoodsMarket {
+    read_text_save(&hand_made_market_save(country))
+        .goods_market
+        .expect("the hand-made Save names the player's market")
 }
 
 #[test]
 fn price_is_missing_not_zero_when_the_save_has_no_price_report() {
-    let save = hand_made_market_save("market=3");
-    let market = read_save(&save, &Rakaly::on_path())
-        .expect("a hand-made Save is read")
-        .goods_market
-        .expect("the hand-made Save names the player's market");
+    let market = hand_made_market("market=3");
     assert_eq!(market.owner.as_deref(), Some("TST"));
     let clothes = good(&market, CLOTHES);
     assert_close(read_value(&clothes.sell_orders_from_buildings), 5.5);
@@ -137,11 +130,7 @@ fn price_is_missing_not_zero_when_the_save_has_no_price_report() {
 
 #[test]
 fn building_orders_and_net_exports_are_missing_not_zero_when_the_save_has_no_entry() {
-    let save = hand_made_market_save("market=3");
-    let market = read_save(&save, &Rakaly::on_path())
-        .expect("a hand-made Save is read")
-        .goods_market
-        .expect("the hand-made Save names the player's market");
+    let market = hand_made_market("market=3");
     let clothes = good(&market, CLOTHES);
     assert!(
         matches!(
@@ -161,7 +150,7 @@ fn building_orders_and_net_exports_are_missing_not_zero_when_the_save_has_no_ent
 #[test]
 fn goods_market_is_missing_when_the_save_names_no_market_for_the_player() {
     let save = hand_made_market_save("");
-    let snapshot = read_save(&save, &Rakaly::on_path()).expect("a hand-made Save is read");
+    let snapshot = read_text_save(&save);
     assert_eq!(snapshot.goods_market, None);
 }
 

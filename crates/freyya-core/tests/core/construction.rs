@@ -1,29 +1,16 @@
-use freyya_core::{Observation, QueuedConstruction, Rakaly, Reading, Unit, read_save};
+use freyya_core::{Observation, QueuedConstruction, Reading, Unit};
 
-fn manual_save() -> Vec<u8> {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../fixtures/saves/sweden_1837_08_16.v3"
-    );
-    std::fs::read(path).expect("the manual Save fixture is readable")
-}
+use crate::helpers::{player_save, read_manual_save, read_text_save};
 
 fn hand_made_text_save(country: &str, ai: &str) -> Vec<u8> {
-    format!(
-        "SAV01000000000000000000\n\
-         meta_data={{ version=\"1.15.2\" game_date=1840.3.9.6 name=\"Testland\" }}\n\
-         country_manager={{ database={{ 0=none 7={{ definition=\"TST\" {country} }} }} }}\n\
-         ai={{ database={{ 3=none {ai} }} }}\n\
-         player_manager={{ database={{ 0={{ user=\"tester\" country=7 }} }} }}\n"
-    )
-    .into_bytes()
+    player_save(country, &format!("ai={{ database={{ 3=none {ai} }} }}"))
 }
 
 #[test]
 fn country_with_no_queued_construction_has_empty_queues() {
     let save = hand_made_text_save("capital=1", "");
 
-    let snapshot = read_save(&save, &Rakaly::on_path()).expect("the hand-made Save is read");
+    let snapshot = read_text_save(&save);
 
     assert_eq!(snapshot.construction.government_queue, vec![]);
     assert_eq!(snapshot.construction.private_queue, vec![]);
@@ -31,7 +18,7 @@ fn country_with_no_queued_construction_has_empty_queues() {
 
 #[test]
 fn manual_save_gives_the_government_construction_queue_in_order() {
-    let snapshot = read_save(&manual_save(), &Rakaly::on_path()).expect("the manual Save is read");
+    let snapshot = read_manual_save();
 
     let queue = &snapshot.construction.government_queue;
     assert_eq!(queue.len(), 23);
@@ -63,7 +50,7 @@ fn manual_save_gives_the_government_construction_queue_in_order() {
 
 #[test]
 fn manual_save_gives_the_construction_in_use_each_week() {
-    let snapshot = read_save(&manual_save(), &Rakaly::on_path()).expect("the manual Save is read");
+    let snapshot = read_manual_save();
 
     assert_eq!(
         snapshot.construction.construction_in_use,
@@ -86,7 +73,7 @@ fn construction_in_use_adds_the_items_under_construction_in_both_queues() {
         "",
     );
 
-    let snapshot = read_save(&save, &Rakaly::on_path()).expect("the hand-made Save is read");
+    let snapshot = read_text_save(&save);
 
     assert_eq!(
         snapshot.construction.construction_in_use.reading,
@@ -101,7 +88,7 @@ fn construction_in_use_is_missing_when_nothing_is_under_construction() {
         "5={ country=7 spending_variables={ country=7 construction_output=40 } }",
     );
 
-    let snapshot = read_save(&save, &Rakaly::on_path()).expect("the hand-made Save is read");
+    let snapshot = read_text_save(&save);
 
     assert_eq!(
         snapshot.construction.construction_in_use.reading,
@@ -115,7 +102,7 @@ fn construction_in_use_is_missing_when_nothing_is_under_construction() {
 
 #[test]
 fn manual_save_gives_the_private_construction_queue() {
-    let snapshot = read_save(&manual_save(), &Rakaly::on_path()).expect("the manual Save is read");
+    let snapshot = read_manual_save();
 
     let queue = &snapshot.construction.private_queue;
     assert_eq!(queue.len(), 1);

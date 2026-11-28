@@ -1,21 +1,9 @@
-use freyya_core::{Observation, Rakaly, Reading, Unit, read_save};
+use freyya_core::{Observation, Reading, Unit};
 
-fn manual_save() -> Vec<u8> {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../fixtures/saves/sweden_1837_08_16.v3"
-    );
-    std::fs::read(path).expect("the manual Save fixture is readable")
-}
+use crate::helpers::{player_save, read_manual_save, read_text_save};
 
 fn text_save_with_player_country(country: &str) -> Vec<u8> {
-    format!(
-        "SAV01000000000000000000\n\
-         meta_data={{ version=\"1.15.2\" game_date=1840.3.9.6 name=\"Testland\" }}\n\
-         country_manager={{ database={{ 0=none 7={{ definition=\"TST\" {country} }} }} }}\n\
-         player_manager={{ database={{ 0={{ user=\"tester\" country=7 }} }} }}\n"
-    )
-    .into_bytes()
+    player_save(country, "")
 }
 
 fn assert_read(observation: &Observation, expected: f64, unit: Unit, source: &str) {
@@ -42,7 +30,7 @@ fn assert_missing(observation: &Observation, unit: Unit, source: &str) {
 
 #[test]
 fn manual_save_gives_treasury_income_and_expenses_and_marks_absent_debt_missing() {
-    let snapshot = read_save(&manual_save(), &Rakaly::on_path()).expect("the manual Save is read");
+    let snapshot = read_manual_save();
     let money = snapshot.money;
 
     assert_read(
@@ -76,9 +64,7 @@ fn country_in_debt_gives_its_principal_as_debt() {
         "budget={ money=0 principal=1860613.51589 weekly_income={ 10 20.5 } weekly_expenses={ 7 } }",
     );
 
-    let money = read_save(&save, &Rakaly::on_path())
-        .expect("the Save is read")
-        .money;
+    let money = read_text_save(&save).money;
 
     assert_read(
         &money.debt,
@@ -104,9 +90,7 @@ fn country_in_debt_gives_its_principal_as_debt() {
 fn country_without_a_budget_marks_every_money_observation_missing() {
     let save = text_save_with_player_country("");
 
-    let money = read_save(&save, &Rakaly::on_path())
-        .expect("the Save is read")
-        .money;
+    let money = read_text_save(&save).money;
 
     assert_missing(
         &money.treasury,
@@ -136,9 +120,7 @@ fn empty_income_and_expense_lists_are_missing_not_zero() {
         "budget={ money=12.5 weekly_income={ } weekly_expenses={ } }",
     );
 
-    let money = read_save(&save, &Rakaly::on_path())
-        .expect("the Save is read")
-        .money;
+    let money = read_text_save(&save).money;
 
     assert_read(
         &money.treasury,

@@ -1,15 +1,8 @@
+use freyya_core::Snapshot;
 use freyya_core::buildings_jobs::{Building, StateBuildings};
 use freyya_core::{Observation, Reading, Unit};
-use freyya_core::{Rakaly, Snapshot, read_save};
 
-fn manual_save_snapshot() -> Snapshot {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../fixtures/saves/sweden_1837_08_16.v3"
-    );
-    let save = std::fs::read(path).expect("the manual Save fixture is readable");
-    read_save(&save, &Rakaly::on_path()).expect("the manual Save is read")
-}
+use crate::helpers::{player_save, read_manual_save, read_text_save};
 
 fn state<'a>(snapshot: &'a Snapshot, region: &str) -> &'a StateBuildings {
     snapshot
@@ -38,7 +31,7 @@ fn observed<T>(value: T, unit: Unit, source: &str) -> Observation<T> {
 
 #[test]
 fn manual_save_gives_buildings_with_levels_methods_and_staffing() {
-    let snapshot = manual_save_snapshot();
+    let snapshot = read_manual_save();
     let svealand = state(&snapshot, "STATE_SVEALAND");
 
     let administration = building(svealand, 0);
@@ -73,7 +66,7 @@ fn manual_save_gives_buildings_with_levels_methods_and_staffing() {
 
 #[test]
 fn manual_save_gives_employees_of_each_building_from_its_pops() {
-    let snapshot = manual_save_snapshot();
+    let snapshot = read_manual_save();
     let svealand = state(&snapshot, "STATE_SVEALAND");
 
     assert_eq!(
@@ -89,7 +82,7 @@ fn manual_save_gives_employees_of_each_building_from_its_pops() {
 
 #[test]
 fn building_under_construction_has_its_staffing_and_employees_marked_missing() {
-    let snapshot = manual_save_snapshot();
+    let snapshot = read_manual_save();
     let gotland = state(&snapshot, "STATE_GOTLAND");
 
     let glassworks = building(gotland, 16_782_042);
@@ -108,7 +101,7 @@ fn building_under_construction_has_its_staffing_and_employees_marked_missing() {
 
 #[test]
 fn manual_save_gives_country_wide_employment_unemployment_and_vacancies() {
-    let jobs = manual_save_snapshot().buildings_and_jobs.jobs;
+    let jobs = read_manual_save().buildings_and_jobs.jobs;
 
     assert_eq!(
         jobs.salaried_workforce,
@@ -146,14 +139,13 @@ fn manual_save_gives_country_wide_employment_unemployment_and_vacancies() {
 
 #[test]
 fn save_without_population_statistics_has_its_jobs_marked_missing() {
-    let save = "SAV01000000000000000000\n\
-         meta_data={ version=\"1.15.2\" game_date=1840.3.9.6 name=\"Testland\" }\n\
-         country_manager={ database={ 0=none 7={ definition=\"TST\" } } }\n\
-         states={ database={ 3={ country=7 region=\"STATE_TEST\" } } }\n\
-         building_manager={ database={ 0=none 1={ building=\"building_rye_farm\" levels=2 state=3 } } }\n\
-         player_manager={ database={ 0={ user=\"tester\" country=7 } } }\n";
+    let save = player_save(
+        "",
+        "states={ database={ 3={ country=7 region=\"STATE_TEST\" } } }\n\
+         building_manager={ database={ 0=none 1={ building=\"building_rye_farm\" levels=2 state=3 } } }",
+    );
 
-    let snapshot = read_save(save.as_bytes(), &Rakaly::on_path()).expect("the Save is read");
+    let snapshot = read_text_save(&save);
 
     let jobs = snapshot.buildings_and_jobs.jobs;
     assert_eq!(
