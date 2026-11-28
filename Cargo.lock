@@ -1808,6 +1808,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "freyya-core"
+version = "0.1.0"
+dependencies = [
+ "jomini",
+ "serde",
+]
+
+[[package]]
 name = "futf"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2836,6 +2844,17 @@ checksum = "1c00acbd29eabad4a2392fa0e921c874934dbbf4194312ad20f04a0ed67a3cb3"
 dependencies = [
  "getrandom 0.4.3",
  "libc",
+]
+
+[[package]]
+name = "jomini"
+version = "0.39.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d784acae093b765c1d8512a1bf59153289f371588ef786027e06454304cc9d5"
+dependencies = [
+ "flate2",
+ "rawzip",
+ "serde",
 ]
 
 [[package]]
@@ -4230,6 +4249,12 @@ dependencies = [
  "objc",
  "raw-window-handle",
 ]
+
+[[package]]
+name = "rawzip"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebe3170012078772481d436f07d89252ed3334a1173de1ea99247459a2931313"
 
 [[package]]
 name = "rayon"
