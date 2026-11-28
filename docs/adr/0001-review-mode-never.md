@@ -21,6 +21,7 @@ Freyya is a single-user, local, read-only tool, so a bad change rarely reaches a
   At Gate 0, the Owner merges every pull request.
 - Tier 3: an Independent reviewer approves the code, then the Owner approves a plain-language Risk summary.
 - Tier 4: the Owner approves a Risk summary, and the agent never runs the change alone.
+- Amended 2026-11-28: during the prototype the Owner gave a standing yes to Tier 3 Risk summaries and agents merge up to Tier 3 ([ADR 0006](0006-agents-merge-during-prototype.md)).
 
 The Owner still makes every Decision.
 Agents phrase each Decision with no code, and explain each new term in the same sentence.

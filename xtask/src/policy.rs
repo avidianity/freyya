@@ -85,8 +85,11 @@ pub(crate) struct Gate {
 
 impl Gate {
     pub(crate) fn agent_may_merge(&self, tier: u8) -> bool {
+        if self.active_gate == 0 {
+            return false;
+        }
         match self.agent_merge_max_tier {
-            Some(max) => tier <= max,
+            Some(max) => tier <= max.min(3),
             None => self.active_gate >= 1 && tier <= self.active_gate.min(2),
         }
     }
@@ -154,6 +157,17 @@ mod tests {
         };
         assert!(prototype.agent_may_merge(3));
         assert!(!prototype.agent_may_merge(4));
+        let switched_off = Gate {
+            active_gate: 0,
+            agent_merge_max_tier: Some(3),
+        };
+        assert!(!switched_off.agent_may_merge(0));
+        let too_high = Gate {
+            active_gate: 3,
+            agent_merge_max_tier: Some(4),
+        };
+        assert!(too_high.agent_may_merge(3));
+        assert!(!too_high.agent_may_merge(4));
     }
 
     fn map() -> TierMap {

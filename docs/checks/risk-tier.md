@@ -35,7 +35,7 @@ Kit spec: [checks/risk-tier.md](https://github.com/avidianity/factory/blob/v0.9.
 
 Runs in: CI, in `.github/workflows/policy.yml`, which applies the `tier-<N>` label.
 Agents also run it locally to read the Expected Tier of a change before they open a pull request.
-The active Autonomy gate is `policy/gate.toml` (Gate 0).
+The active Autonomy gate is `policy/gate.toml`; the tier check prints who may merge ([ADR 0006](../adr/0006-agents-merge-during-prototype.md)).
 
 ## Known limits
 

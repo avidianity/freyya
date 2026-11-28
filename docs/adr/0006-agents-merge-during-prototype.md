@@ -20,7 +20,7 @@ One GitHub account serves the Owner and agents ([ADR 0004](0004-public-repo-sing
 - `policy/gate.toml` sets `active_gate = 3` and `agent_merge_max_tier = 3`; the tier check reads it from the protected base revision and reports who may merge.
 - The Owner's standing yes covers Tier 3 Risk summaries; the agent still writes the Risk summary into the pull request.
 - Branch protection on `main` stays: a pull request and the `rust`, `repo`, and `policy` checks are required for every merge.
-- The Owner ends this at any time by saying no; the agent then sets `agent_merge_max_tier` back to `0` with `active_gate = 0` in a pull request that the Owner merges.
+- The Owner ends this at any time by saying no; the agent then sets `active_gate = 0` and removes `agent_merge_max_tier` in a pull request that the Owner merges. `active_gate = 0` stops all agent merges even if the field stays, and the code caps the field at Tier 3.
 
 ## Considered options
 
