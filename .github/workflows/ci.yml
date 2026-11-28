@@ -64,6 +64,14 @@ jobs:
         run: cargo clippy --workspace --locked
       - name: clippy (all targets)
         run: cargo clippy --workspace --all-targets --locked
+      - name: Install Rakaly CLI 0.8.26
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSfL -o "$RUNNER_TEMP/rakaly.zip" https://github.com/rakaly/cli/releases/download/v0.8.26/rakaly-0.8.26-x86_64-pc-windows-msvc.zip
+          echo "717aee5d3a2bd67455f77fed6f26ec2aaa6866832fb15baaced0161a00e604dd  $RUNNER_TEMP/rakaly.zip" | sha256sum --check
+          unzip -q -j "$RUNNER_TEMP/rakaly.zip" -d "$RUNNER_TEMP/rakaly"
+          echo "$RUNNER_TEMP/rakaly" >> "$GITHUB_PATH"
       - name: Application tests
         run: cargo test --workspace --exclude xtask --locked
 
