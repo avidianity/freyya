@@ -10,7 +10,7 @@ A snapshot-based advisor is feasible. A faithful simulator or globally optimal p
 
 | Resource | Reusable capability | Limitation |
 |---|---|---|
-| [Rakaly CLI](https://github.com/rakaly/cli) / [releases](https://github.com/rakaly/cli/releases) | Decode binary saves; save watching | Version-specific token resolution. Changelog reports support for 1.15.0 in 0.8.23; exact 1.15.2 compatibility untested. |
+| [Rakaly CLI](https://github.com/rakaly/cli) / [releases](https://github.com/rakaly/cli/releases) | Decode binary saves; save watching | Version-specific token resolution. Changelog reports support for 1.15.0 in 0.8.23; 0.8.26 melts a real 1.15.2 Save with no unknown token (2026-11-28 amendment, see [findings](save-and-game-files-findings.md#save-reader)). |
 | [Jomini](https://github.com/rakaly/jomini) | Rust parser for Paradox text and binary data; compressed save envelopes | Low-level parser, not a semantic Victoria 3 data model. Binary input requires correct token resolver. |
 | [Garibaldi](https://github.com/OakenTrader/Garibaldi) | Save watcher, construction, innovation, research, demographics, treasury, debt and historical charts | Existing workflow archives then processes saves; not proof of interactive latency. Limited mod support documented. |
 | [V3 Save Analyzer](https://github.com/JacksonWeber/v3-save-analyzer) | GDP, population, standard of living, literacy, budgets, state GDP, technology and goods production | Dashboard, not an advisor; verify exact field definitions and version coverage. |
