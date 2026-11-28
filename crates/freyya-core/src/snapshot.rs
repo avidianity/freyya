@@ -1,10 +1,13 @@
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use crate::Money;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Snapshot {
     pub game_version: String,
     pub game_date: GameDate,
     pub player_country: PlayerCountry,
+    pub money: Money,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
