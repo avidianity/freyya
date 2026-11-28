@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/freyya", "crates/freyya-core","xtask"]
+members = ["crates/freyya", "crates/freyya-core", "crates/freyya-cli", "xtask"]
 
 [workspace.package]
 edition = "2024"

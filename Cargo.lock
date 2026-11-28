@@ -1808,6 +1808,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "freyya-cli"
+version = "0.1.0"
+dependencies = [
+ "freyya-core",
+]
+
+[[package]]
 name = "freyya-core"
 version = "0.1.0"
 dependencies = [
