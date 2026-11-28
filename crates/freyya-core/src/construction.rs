@@ -4,6 +4,7 @@ use crate::{Observation, Unit};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Construction {
+    pub capacity: Observation<f64>,
     pub government_queue: Vec<QueuedConstruction>,
     pub private_queue: Vec<QueuedConstruction>,
 }
@@ -31,15 +32,51 @@ struct SavedElement {
     construction_speed: Option<f64>,
 }
 
-pub(crate) fn construction(
+#[derive(Debug, Deserialize)]
+pub(crate) struct SavedAi {
+    country: u32,
+    spending_variables: Option<SavedSpending>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SavedSpending {
+    construction_output: Option<f64>,
+}
+
+pub(crate) fn construction<'a>(
     country: u32,
     government_queue: Option<&SavedQueue>,
     private_queue: Option<&SavedQueue>,
+    ai: impl IntoIterator<Item = (u32, &'a SavedAi)>,
 ) -> Construction {
     Construction {
+        capacity: capacity(country, ai),
         government_queue: queue(country, "government_queue", government_queue),
         private_queue: queue(country, "private_queue", private_queue),
     }
+}
+
+fn capacity<'a>(
+    country: u32,
+    ai: impl IntoIterator<Item = (u32, &'a SavedAi)>,
+) -> Observation<f64> {
+    let player_ai = ai.into_iter().find(|(_, entry)| entry.country == country);
+    let (source, value) = match player_ai {
+        Some((id, entry)) => (
+            format!("ai.database.{id}.spending_variables.construction_output"),
+            entry
+                .spending_variables
+                .as_ref()
+                .and_then(|spending| spending.construction_output),
+        ),
+        None => (
+            format!(
+                "ai.database.<entry for country {country}>.spending_variables.construction_output"
+            ),
+            None,
+        ),
+    };
+    Observation::new(value, Unit::ConstructionPointsPerWeek, source)
 }
 
 fn queue(country: u32, name: &str, saved: Option<&SavedQueue>) -> Vec<QueuedConstruction> {

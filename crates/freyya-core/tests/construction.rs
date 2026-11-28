@@ -59,6 +59,36 @@ fn manual_save_gives_the_government_construction_queue_in_order() {
 }
 
 #[test]
+fn manual_save_gives_the_construction_capacity() {
+    let snapshot = read_save(&manual_save(), &Rakaly::on_path()).expect("the manual Save is read");
+
+    assert_eq!(
+        snapshot.construction.capacity,
+        Observation {
+            value: Some(25.0),
+            unit: Unit::ConstructionPointsPerWeek,
+            source: "ai.database.326.spending_variables.construction_output".to_owned(),
+        }
+    );
+}
+
+#[test]
+fn construction_capacity_is_missing_when_the_save_does_not_record_it() {
+    let save = hand_made_text_save(
+        "capital=1",
+        "5={ country=9 spending_variables={ country=9 construction_output=40 } }",
+    );
+
+    let snapshot = read_save(&save, &Rakaly::on_path()).expect("the hand-made Save is read");
+
+    assert_eq!(snapshot.construction.capacity.value, None);
+    assert_eq!(
+        snapshot.construction.capacity.unit,
+        Unit::ConstructionPointsPerWeek
+    );
+}
+
+#[test]
 fn manual_save_gives_the_private_construction_queue() {
     let snapshot = read_save(&manual_save(), &Rakaly::on_path()).expect("the manual Save is read");
 
