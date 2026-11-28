@@ -1,8 +1,12 @@
 mod envelope;
 mod gamestate;
+mod money;
+mod observation;
 mod rakaly;
 mod snapshot;
 
+pub use money::Money;
+pub use observation::{Observation, Reading, Unit};
 pub use rakaly::Rakaly;
 pub use snapshot::{GameDate, PlayerCountry, Refusal, Snapshot};
 
