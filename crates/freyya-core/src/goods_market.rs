@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
 use crate::buildings_jobs::{Database, SaveBuilding, SaveState};
 use crate::money::Budget;
+use crate::observation::{Observation, Unit};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct GoodsMarket {
@@ -22,47 +22,6 @@ pub struct MarketGood {
     pub buy_orders_from_buildings: Observation,
     pub buy_orders_from_pops: Observation,
     pub net_exports: Observation,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Observation {
-    pub value: Value,
-    pub unit: Unit,
-    pub source: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub enum Value {
-    Read(f64),
-    Missing { reason: String },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub enum Unit {
-    PoundsPerUnit,
-    UnitsPerWeek,
-    TradeVolume,
-}
-
-impl fmt::Display for Unit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Unit::PoundsPerUnit => f.write_str("£ per unit"),
-            Unit::UnitsPerWeek => f.write_str("units per week"),
-            Unit::TradeVolume => f.write_str("trade volume"),
-        }
-    }
-}
-
-impl fmt::Display for Observation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.value {
-            Value::Read(value) => write!(f, "{value:.2} {} [{}]", self.unit, self.source),
-            Value::Missing { reason } => {
-                write!(f, "missing ({reason}) [{}]", self.source)
-            }
-        }
-    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -156,23 +115,19 @@ pub(crate) fn player_goods_market(
             price: price(good, owner_id, prices),
             sell_orders_from_buildings: building_flow(good, market, "output_goods", &orders.sell),
             buy_orders_from_buildings: building_flow(good, market, "input_goods", &orders.buy),
-            buy_orders_from_pops: Observation {
-                value: Value::Missing {
-                    reason: "the Save stores pop spending as money, not as goods".to_owned(),
-                },
-                unit: Unit::UnitsPerWeek,
-                source: "pops.database.*.weekly_budget".to_owned(),
-            },
-            net_exports: Observation {
-                value: summed_value(
-                    net_exports.get(&good),
-                    "no state in the market has a trade entry for this good",
-                ),
-                unit: Unit::TradeVolume,
-                source: format!(
+            buy_orders_from_pops: Observation::missing(
+                "the Save stores pop spending as money, not as goods",
+                Unit::UnitsPerWeek,
+                "pops.database.*.weekly_budget".to_owned(),
+            ),
+            net_exports: Observation::or_missing(
+                net_exports.get(&good).copied(),
+                "no state in the market has a trade entry for this good",
+                Unit::TradeVolume,
+                format!(
                     "states.database.*.trade.goods.{good}.value, summed over the states of market {market}"
                 ),
-            },
+            ),
         })
         .collect();
     Some(GoodsMarket {
@@ -205,49 +160,31 @@ fn add_amounts(totals: &mut HashMap<u16, f64>, amounts: Option<&GoodAmounts>) {
     }
 }
 
-fn summed_value(total: Option<&f64>, reason: &str) -> Value {
-    match total {
-        Some(total) => Value::Read(*total),
-        None => Value::Missing {
-            reason: reason.to_owned(),
-        },
-    }
-}
-
 fn building_flow(good: u16, market: u32, field: &str, totals: &HashMap<u16, f64>) -> Observation {
-    Observation {
-        value: summed_value(
-            totals.get(&good),
-            &format!("no building in the market has this good in its {field}"),
-        ),
-        unit: Unit::UnitsPerWeek,
-        source: format!(
+    Observation::or_missing(
+        totals.get(&good).copied(),
+        format!("no building in the market has this good in its {field}"),
+        Unit::UnitsPerWeek,
+        format!(
             "building_manager.database.*.{field}.goods.{good}.value, summed over buildings in the states of market {market}"
         ),
-    }
+    )
 }
 
 fn price(good: u16, owner: Option<u32>, prices: Option<&GoodAmounts>) -> Observation {
     let Some(owner) = owner else {
-        return Observation {
-            value: Value::Missing {
-                reason: "the Save names no owner for the player's market".to_owned(),
-            },
-            unit: Unit::PoundsPerUnit,
-            source: "market_manager.database".to_owned(),
-        };
+        return Observation::missing(
+            "the Save names no owner for the player's market",
+            Unit::PoundsPerUnit,
+            "market_manager.database".to_owned(),
+        );
     };
-    let source =
-        format!("country_manager.database.{owner}.budget.current_price_report.goods.{good}.value");
-    let value = match prices.and_then(|report| report.goods.get(&good)) {
-        Some(amount) => Value::Read(amount.value),
-        None => Value::Missing {
-            reason: "the market owner's price report has no entry for this good".to_owned(),
-        },
-    };
-    Observation {
-        value,
-        unit: Unit::PoundsPerUnit,
-        source,
-    }
+    Observation::or_missing(
+        prices
+            .and_then(|report| report.goods.get(&good))
+            .map(|amount| amount.value),
+        "the market owner's price report has no entry for this good",
+        Unit::PoundsPerUnit,
+        format!("country_manager.database.{owner}.budget.current_price_report.goods.{good}.value"),
+    )
 }

@@ -53,7 +53,10 @@ fn manual_save_gives_the_government_construction_queue_in_order() {
         }
     );
     assert_eq!(queue[1].construction_left.reading, Reading::Read(200.0));
-    assert_eq!(queue[1].construction_speed.reading, Reading::Missing);
+    assert_eq!(
+        queue[1].construction_speed.reading,
+        Reading::Missing { reason: None }
+    );
     assert_eq!(queue[2].building, "building_arms_industry");
     assert_eq!(queue[2].state, 483);
 }
@@ -102,7 +105,7 @@ fn construction_in_use_is_missing_when_nothing_is_under_construction() {
 
     assert_eq!(
         snapshot.construction.construction_in_use.reading,
-        Reading::Missing
+        Reading::Missing { reason: None }
     );
     assert_eq!(
         snapshot.construction.construction_in_use.unit,

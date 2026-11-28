@@ -1,4 +1,5 @@
-use freyya_core::goods_market::{GoodsMarket, MarketGood, Observation, Unit, Value};
+use freyya_core::goods_market::{GoodsMarket, MarketGood};
+use freyya_core::{Observation, Reading, Unit};
 use freyya_core::{Rakaly, read_save};
 
 const TANKS: u16 = 3;
@@ -28,15 +29,15 @@ fn good(market: &GoodsMarket, good: u16) -> &MarketGood {
 }
 
 fn read_value(observation: &Observation) -> f64 {
-    match &observation.value {
-        Value::Read(value) => *value,
-        Value::Missing { reason } => panic!("expected a read value, got missing: {reason}"),
+    match &observation.reading {
+        Reading::Read(value) => *value,
+        Reading::Missing { reason } => panic!("expected a read value, got missing: {reason:?}"),
     }
 }
 
 fn assert_missing(observation: &Observation) {
     assert!(
-        matches!(observation.value, Value::Missing { .. }),
+        matches!(observation.reading, Reading::Missing { .. }),
         "expected missing, got {observation:?}"
     );
 }
@@ -128,7 +129,7 @@ fn price_is_missing_not_zero_when_the_save_has_no_price_report() {
     let clothes = good(&market, CLOTHES);
     assert_close(read_value(&clothes.sell_orders_from_buildings), 5.5);
     assert!(
-        matches!(clothes.price.value, Value::Missing { .. }),
+        matches!(clothes.price.reading, Reading::Missing { .. }),
         "got {:?}",
         clothes.price
     );
@@ -144,14 +145,14 @@ fn building_orders_and_net_exports_are_missing_not_zero_when_the_save_has_no_ent
     let clothes = good(&market, CLOTHES);
     assert!(
         matches!(
-            clothes.buy_orders_from_buildings.value,
-            Value::Missing { .. }
+            clothes.buy_orders_from_buildings.reading,
+            Reading::Missing { .. }
         ),
         "got {:?}",
         clothes.buy_orders_from_buildings
     );
     assert!(
-        matches!(clothes.net_exports.value, Value::Missing { .. }),
+        matches!(clothes.net_exports.reading, Reading::Missing { .. }),
         "got {:?}",
         clothes.net_exports
     );
@@ -169,7 +170,7 @@ fn buy_orders_of_pops_are_missing_because_the_save_does_not_store_them() {
     let market = manual_save_market();
     let grain = good(&market, GRAIN);
     assert!(
-        matches!(grain.buy_orders_from_pops.value, Value::Missing { .. }),
+        matches!(grain.buy_orders_from_pops.reading, Reading::Missing { .. }),
         "got {:?}",
         grain.buy_orders_from_pops
     );

@@ -7,6 +7,7 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::goods_market::GoodAmounts;
+use crate::observation::{Observation, Unit};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BuildingsAndJobs {
@@ -37,32 +38,6 @@ pub struct Building {
     pub production_methods: Observation<Vec<String>>,
     pub staffing: Observation<f64>,
     pub employees: Observation<u64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Observation<T> {
-    pub value: Option<T>,
-    pub unit: Unit,
-    pub source: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub enum Unit {
-    People,
-    Levels,
-    StaffedLevels,
-    ProductionMethods,
-}
-
-impl fmt::Display for Unit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Unit::People => "people",
-            Unit::Levels => "levels",
-            Unit::StaffedLevels => "staffed levels",
-            Unit::ProductionMethods => "production methods",
-        })
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -197,20 +172,20 @@ pub(crate) fn buildings_and_jobs(
 fn observe_jobs(country: u32, statistics: Option<&SavePopStatistics>) -> Jobs {
     let people = |field: &str, read: fn(&SavePopStatistics) -> Option<f64>, saved_as: SavedAs| {
         let source = format!("country_manager.database.{country}.pop_statistics.{field}");
-        Observation {
-            value: statistics
+        Observation::of(
+            statistics
                 .and_then(read)
                 .map(|value| match saved_as {
                     SavedAs::People => value,
                     SavedAs::HundredThousandPeople => value * 100_000.0,
                 })
                 .map(|people| people.round() as u64),
-            unit: Unit::People,
-            source: match saved_as {
+            Unit::People,
+            match saved_as {
                 SavedAs::People => source,
                 SavedAs::HundredThousandPeople => format!("{source} x 100000"),
             },
-        }
+        )
     };
     Jobs {
         salaried_workforce: people(
@@ -251,25 +226,17 @@ fn observe_building(id: u32, building: &SaveBuilding, employees: Option<u64>) ->
     Building {
         id,
         kind: building.building.clone(),
-        levels: Observation {
-            value: building.levels,
-            unit: Unit::Levels,
-            source: source("levels"),
-        },
-        production_methods: Observation {
-            value: building.production_methods.clone(),
-            unit: Unit::ProductionMethods,
-            source: source("production_methods"),
-        },
-        staffing: Observation {
-            value: building.staffing,
-            unit: Unit::StaffedLevels,
-            source: source("staffing"),
-        },
-        employees: Observation {
-            value: employees,
-            unit: Unit::People,
-            source: format!("pops.database.*.workforce where workplace={id}"),
-        },
+        levels: Observation::of(building.levels, Unit::Levels, source("levels")),
+        production_methods: Observation::of(
+            building.production_methods.clone(),
+            Unit::ProductionMethods,
+            source("production_methods"),
+        ),
+        staffing: Observation::of(building.staffing, Unit::StaffedLevels, source("staffing")),
+        employees: Observation::of(
+            employees,
+            Unit::People,
+            format!("pops.database.*.workforce where workplace={id}"),
+        ),
     }
 }

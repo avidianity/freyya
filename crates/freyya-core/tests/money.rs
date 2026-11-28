@@ -24,14 +24,18 @@ fn assert_read(observation: &Observation, expected: f64, unit: Unit, source: &st
             (value - expected).abs() < 1e-6,
             "{source}: read {value}, expected {expected}"
         ),
-        Reading::Missing => panic!("{source}: missing, expected {expected}"),
+        Reading::Missing { .. } => panic!("{source}: missing, expected {expected}"),
     }
     assert_eq!(observation.unit, unit);
     assert_eq!(observation.source, source);
 }
 
 fn assert_missing(observation: &Observation, unit: Unit, source: &str) {
-    assert_eq!(observation.reading, Reading::Missing, "{source}");
+    assert_eq!(
+        observation.reading,
+        Reading::Missing { reason: None },
+        "{source}"
+    );
     assert_eq!(observation.unit, unit);
     assert_eq!(observation.source, source);
 }

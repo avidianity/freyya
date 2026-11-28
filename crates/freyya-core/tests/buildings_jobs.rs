@@ -1,4 +1,5 @@
-use freyya_core::buildings_jobs::{Building, Observation, StateBuildings, Unit};
+use freyya_core::buildings_jobs::{Building, StateBuildings};
+use freyya_core::{Observation, Reading, Unit};
 use freyya_core::{Rakaly, Snapshot, read_save};
 
 fn manual_save_snapshot() -> Snapshot {
@@ -29,7 +30,7 @@ fn building(state: &StateBuildings, id: u32) -> &Building {
 
 fn observed<T>(value: T, unit: Unit, source: &str) -> Observation<T> {
     Observation {
-        value: Some(value),
+        reading: Reading::Read(value),
         unit,
         source: source.to_owned(),
     }
@@ -83,7 +84,7 @@ fn manual_save_gives_employees_of_each_building_from_its_pops() {
             "pops.database.*.workforce where workplace=0"
         )
     );
-    assert_eq!(building(svealand, 9).employees.value, Some(895));
+    assert_eq!(building(svealand, 9).employees.reading, Reading::Read(895));
 }
 
 #[test]
@@ -94,9 +95,15 @@ fn building_under_construction_has_its_staffing_and_employees_marked_missing() {
     let glassworks = building(gotland, 16_782_042);
 
     assert_eq!(glassworks.kind, "building_glassworks");
-    assert_eq!(glassworks.levels.value, Some(0));
-    assert_eq!(glassworks.staffing.value, None);
-    assert_eq!(glassworks.employees.value, None);
+    assert_eq!(glassworks.levels.reading, Reading::Read(0));
+    assert_eq!(
+        glassworks.staffing.reading,
+        Reading::Missing { reason: None }
+    );
+    assert_eq!(
+        glassworks.employees.reading,
+        Reading::Missing { reason: None }
+    );
 }
 
 #[test]
@@ -149,13 +156,25 @@ fn save_without_population_statistics_has_its_jobs_marked_missing() {
     let snapshot = read_save(save.as_bytes(), &Rakaly::on_path()).expect("the Save is read");
 
     let jobs = snapshot.buildings_and_jobs.jobs;
-    assert_eq!(jobs.salaried_workforce.value, None);
-    assert_eq!(jobs.unemployed_workforce.value, None);
-    assert_eq!(jobs.subsisting_workforce.value, None);
-    assert_eq!(jobs.vacancies.value, None);
+    assert_eq!(
+        jobs.salaried_workforce.reading,
+        Reading::Missing { reason: None }
+    );
+    assert_eq!(
+        jobs.unemployed_workforce.reading,
+        Reading::Missing { reason: None }
+    );
+    assert_eq!(
+        jobs.subsisting_workforce.reading,
+        Reading::Missing { reason: None }
+    );
+    assert_eq!(jobs.vacancies.reading, Reading::Missing { reason: None });
     let farm = building(&snapshot.buildings_and_jobs.states[0], 1);
-    assert_eq!(farm.levels.value, Some(2));
-    assert_eq!(farm.production_methods.value, None);
-    assert_eq!(farm.staffing.value, None);
-    assert_eq!(farm.employees.value, None);
+    assert_eq!(farm.levels.reading, Reading::Read(2));
+    assert_eq!(
+        farm.production_methods.reading,
+        Reading::Missing { reason: None }
+    );
+    assert_eq!(farm.staffing.reading, Reading::Missing { reason: None });
+    assert_eq!(farm.employees.reading, Reading::Missing { reason: None });
 }

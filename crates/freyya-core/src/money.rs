@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::goods_market::GoodAmounts;
-use crate::observation::{Observation, Unit, observe};
+use crate::observation::{Observation, Unit};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Money {
@@ -31,18 +31,18 @@ impl Money {
         let budget = budget.unwrap_or(&empty);
         let source = |field: &str| format!("country_manager.database.{country_id}.budget.{field}");
         Money {
-            treasury: observe(budget.money, Unit::Pounds, source("money")),
-            weekly_income: observe(
+            treasury: Observation::of(budget.money, Unit::Pounds, source("money")),
+            weekly_income: Observation::of(
                 sum(&budget.weekly_income),
                 Unit::PoundsPerWeek,
                 source("weekly_income (sum)"),
             ),
-            weekly_expenses: observe(
+            weekly_expenses: Observation::of(
                 sum(&budget.weekly_expenses),
                 Unit::PoundsPerWeek,
                 source("weekly_expenses (sum)"),
             ),
-            debt: observe(budget.principal, Unit::Pounds, source("principal")),
+            debt: Observation::of(budget.principal, Unit::Pounds, source("principal")),
         }
     }
 }

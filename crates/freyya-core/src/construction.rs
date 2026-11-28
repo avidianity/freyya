@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::observation::{Observation, Unit, observe};
+use crate::observation::{Observation, Unit};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Construction {
@@ -52,7 +52,7 @@ fn construction_in_use(country: u32, queues: [Option<&SavedQueue>; 2]) -> Observ
         .filter_map(|element| element.base_construction_speed)
         .collect();
     let total = (!speeds.is_empty()).then(|| speeds.iter().sum());
-    observe(
+    Observation::of(
         total,
         Unit::ConstructionPointsPerWeek,
         format!(
@@ -78,12 +78,12 @@ fn queue(country: u32, name: &str, saved: Option<&SavedQueue>) -> Vec<QueuedCons
             QueuedConstruction {
                 building: element.building.clone(),
                 state: element.state,
-                construction_left: observe(
+                construction_left: Observation::of(
                     element.construction_left,
                     Unit::ConstructionPoints,
                     source("construction_left"),
                 ),
-                construction_speed: observe(
+                construction_speed: Observation::of(
                     element.base_construction_speed,
                     Unit::ConstructionPointsPerWeek,
                     source("base_construction_speed"),
