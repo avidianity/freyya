@@ -59,31 +59,53 @@ fn manual_save_gives_the_government_construction_queue_in_order() {
 }
 
 #[test]
-fn manual_save_gives_the_construction_capacity() {
+fn manual_save_gives_the_construction_in_use_each_week() {
     let snapshot = read_save(&manual_save(), &Rakaly::on_path()).expect("the manual Save is read");
 
     assert_eq!(
-        snapshot.construction.capacity,
+        snapshot.construction.construction_in_use,
         Observation {
-            reading: Reading::Read(25.0),
+            reading: Reading::Read(15.0),
             unit: Unit::ConstructionPointsPerWeek,
-            source: "ai.database.326.spending_variables.construction_output".to_owned(),
+            source: "country_manager.database.24.government_queue and private_queue construction_elements[*].base_construction_speed (sum)".to_owned(),
         }
     );
 }
 
 #[test]
-fn construction_capacity_is_missing_when_the_save_does_not_record_it() {
+fn construction_in_use_adds_the_items_under_construction_in_both_queues() {
     let save = hand_made_text_save(
-        "capital=1",
-        "5={ country=9 spending_variables={ country=9 construction_output=40 } }",
+        "government_queue={ construction_elements={ \
+         { type=\"building_iron_mine\" state=1 construction_left=12 base_construction_speed=4.5 } \
+         { type=\"building_iron_mine\" state=1 construction_left=400 } } } \
+         private_queue={ construction_elements={ \
+         { type=\"building_glassworks\" state=1 construction_left=90 base_construction_speed=3 } } }",
+        "",
     );
 
     let snapshot = read_save(&save, &Rakaly::on_path()).expect("the hand-made Save is read");
 
-    assert_eq!(snapshot.construction.capacity.reading, Reading::Missing);
     assert_eq!(
-        snapshot.construction.capacity.unit,
+        snapshot.construction.construction_in_use.reading,
+        Reading::Read(7.5)
+    );
+}
+
+#[test]
+fn construction_in_use_is_missing_when_nothing_is_under_construction() {
+    let save = hand_made_text_save(
+        "capital=1",
+        "5={ country=7 spending_variables={ country=7 construction_output=40 } }",
+    );
+
+    let snapshot = read_save(&save, &Rakaly::on_path()).expect("the hand-made Save is read");
+
+    assert_eq!(
+        snapshot.construction.construction_in_use.reading,
+        Reading::Missing
+    );
+    assert_eq!(
+        snapshot.construction.construction_in_use.unit,
         Unit::ConstructionPointsPerWeek
     );
 }

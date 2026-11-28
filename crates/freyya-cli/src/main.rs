@@ -69,7 +69,7 @@ fn print_save(path: &Path, rakaly: &Rakaly, game: Option<&Path>) -> ExitCode {
 }
 
 fn print_construction(construction: &Construction, catalog: Option<&Catalog>) {
-    println!("Construction capacity: {}", construction.capacity);
+    println!("Construction in use: {}", construction.construction_in_use);
     print_queue("Government queue", &construction.government_queue, catalog);
     print_queue("Private queue", &construction.private_queue, catalog);
 }

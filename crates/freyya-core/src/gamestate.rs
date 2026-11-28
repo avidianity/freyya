@@ -8,7 +8,7 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
 use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SavePopStatistics, SaveState};
-use crate::construction::{self, SavedAi, SavedQueue};
+use crate::construction::{self, SavedQueue};
 use crate::goods_market::{self, MarketCountry, MarketSections, SaveMarket};
 use crate::money::Budget;
 use crate::{GameDate, Money, PlayerCountry, Refusal, Snapshot};
@@ -20,7 +20,6 @@ pub(crate) struct Gamestate {
     meta_data: MetaData,
     player_manager: Manager<Player>,
     country_manager: Manager<MaybeNone<Country>>,
-    ai: Option<Manager<MaybeNone<SavedAi>>>,
     #[serde(default)]
     states: Database<SaveState>,
     #[serde(default)]
@@ -136,11 +135,6 @@ impl Gamestate {
             country_id,
             country.government_queue.as_ref(),
             country.private_queue.as_ref(),
-            self.ai.iter().flat_map(|ai| {
-                ai.database
-                    .iter()
-                    .filter_map(|(id, entry)| entry.0.as_ref().map(|entry| (*id, entry)))
-            }),
         );
         let goods_market = goods_market::player_goods_market(
             country_id,
