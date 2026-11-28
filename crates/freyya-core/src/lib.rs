@@ -1,8 +1,13 @@
+mod catalog;
 mod envelope;
 mod gamestate;
 mod rakaly;
 mod snapshot;
 
+pub use catalog::{
+    Area, AreaCheck, Catalog, CatalogRefusal, Define, Definition, Verdict, check_game_files,
+    read_game_files,
+};
 pub use rakaly::Rakaly;
 pub use snapshot::{GameDate, PlayerCountry, Refusal, Snapshot};
 
