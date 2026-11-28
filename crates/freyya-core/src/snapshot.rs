@@ -2,9 +2,7 @@ use std::fmt;
 
 use serde::Serialize;
 
-use crate::buildings_jobs::BuildingsAndJobs;
-use crate::goods_market::GoodsMarket;
-use crate::{Construction, Money};
+use crate::{BuildingsAndJobs, Construction, GoodsMarket, Money};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Snapshot {

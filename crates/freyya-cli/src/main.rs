@@ -5,7 +5,7 @@ mod measure;
 use std::path::Path;
 use std::process::ExitCode;
 
-use freyya_core::goods_market::GoodsMarket;
+use freyya_core::GoodsMarket;
 use freyya_core::{
     Catalog, Construction, QueuedConstruction, Rakaly, check_game_files, read_game_files, read_save,
 };

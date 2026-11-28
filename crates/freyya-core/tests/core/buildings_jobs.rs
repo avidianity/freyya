@@ -1,5 +1,5 @@
 use freyya_core::Snapshot;
-use freyya_core::buildings_jobs::{Building, StateBuildings};
+use freyya_core::{Building, StateBuildings};
 use freyya_core::{Observation, Reading, Unit};
 
 use crate::helpers::{player_save, read_manual_save, read_text_save};

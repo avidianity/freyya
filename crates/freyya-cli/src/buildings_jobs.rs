@@ -1,5 +1,5 @@
 use freyya_core::Catalog;
-use freyya_core::buildings_jobs::{Building, BuildingsAndJobs};
+use freyya_core::{Building, BuildingsAndJobs};
 
 use crate::building_label;
 

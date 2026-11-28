@@ -1,4 +1,4 @@
-use freyya_core::goods_market::{GoodsMarket, MarketGood};
+use freyya_core::{GoodsMarket, MarketGood};
 use freyya_core::{Observation, Reading, Unit};
 
 use crate::helpers::{player_save, read_manual_save, read_text_save};
