@@ -5,7 +5,7 @@ use freyya_core::{Rakaly, Snapshot, read_save};
 pub(crate) const CHECKED_META: &str = "version=\"1.15.2\" game_date=1840.3.9.6 name=\"Testland\"";
 
 pub(crate) fn rakaly() -> Rakaly {
-    Rakaly::on_path()
+    Rakaly::at("rakaly")
 }
 
 pub(crate) fn unavailable_rakaly() -> Rakaly {

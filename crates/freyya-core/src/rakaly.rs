@@ -11,10 +11,6 @@ pub struct Rakaly {
 }
 
 impl Rakaly {
-    pub fn on_path() -> Self {
-        Self::at("rakaly")
-    }
-
     pub fn at(program: impl Into<PathBuf>) -> Self {
         Self {
             program: program.into(),

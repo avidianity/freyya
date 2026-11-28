@@ -10,7 +10,7 @@ use freyya_core::{
     Catalog, Construction, QueuedConstruction, Rakaly, check_game_files, read_game_files, read_save,
 };
 
-use config::{Command, USAGE, command_from_args};
+use config::{Command, ConfigError, command_from_args};
 
 fn main() -> ExitCode {
     match command_from_args(std::env::args().skip(1)) {
@@ -18,8 +18,11 @@ fn main() -> ExitCode {
         Ok(Command::CheckGameFiles { game }) => print_game_files_check(&game),
         Ok(Command::MeasureSave { saves, rakaly }) => measure::print_measurements(&saves, &rakaly),
         Err(problem) => {
-            eprintln!("{problem}\n{USAGE}");
-            ExitCode::from(64)
+            eprintln!("{problem}");
+            match problem {
+                ConfigError::Usage(_) => ExitCode::from(64),
+                ConfigError::MissingPath(_) => ExitCode::from(66),
+            }
         }
     }
 }
