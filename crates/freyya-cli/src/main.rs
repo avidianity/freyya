@@ -3,7 +3,7 @@ mod config;
 use std::path::Path;
 use std::process::ExitCode;
 
-use freyya_core::{Rakaly, read_save};
+use freyya_core::{Construction, QueuedConstruction, Rakaly, read_save};
 
 use config::{Command, USAGE, command_from_args};
 
@@ -34,11 +34,33 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
                 "Player country: {} ({})",
                 snapshot.player_country.name, snapshot.player_country.tag
             );
+            print_construction(&snapshot.construction);
             ExitCode::SUCCESS
         }
         Err(refusal) => {
             eprintln!("Refused {}: {refusal}", path.display());
             ExitCode::from(65)
         }
+    }
+}
+
+fn print_construction(construction: &Construction) {
+    println!("Construction");
+    println!("  Capacity: {}", construction.capacity);
+    print_queue("Government queue", &construction.government_queue);
+    print_queue("Private queue", &construction.private_queue);
+}
+
+fn print_queue(title: &str, queue: &[QueuedConstruction]) {
+    println!("  {title}: {} items", queue.len());
+    for (position, item) in queue.iter().enumerate() {
+        println!(
+            "    {:>2}. {} in state {}",
+            position + 1,
+            item.building,
+            item.state
+        );
+        println!("        left:  {}", item.construction_left);
+        println!("        speed: {}", item.construction_speed);
     }
 }
