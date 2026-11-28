@@ -1,1 +1,2 @@
-active_gate = 0
+active_gate = 3
+agent_merge_max_tier = 3

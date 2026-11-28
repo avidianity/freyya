@@ -180,7 +180,7 @@ The skills above load these helpers themselves, so you never start them:
 - Each Decision outside your Standing Decisions ADR, during `grill-with-docs`, `wayfinder`, or a build that stops to ask.
 - Any change to your Standing Decisions ADR (always Tier 3).
 - The Ticket breakdown before `to-tickets` publishes it, and the start of each build by starting `implement` or `implement-spec` (or one upfront go-ahead for Tier 0 to 2 Spec through Build).
-- Each merge that the Review mode and active autonomy gate give to you.
+- Each merge that the Review mode and active autonomy gate give to you; during the prototype agents merge up to Tier 3, and Tier 4 stays with you ([ADR 0006](adr/0006-agents-merge-during-prototype.md)).
 - Each Tier 4 operation, which you start or watch.
 
 GitHub will not merge into `main` until a pull request passes the `rust`, `repo`, and `policy` checks.

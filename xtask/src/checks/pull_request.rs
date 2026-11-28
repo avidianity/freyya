@@ -240,7 +240,7 @@ pub(super) fn risk_tier(repo: &Repo, args: &Args) -> Result<Failures> {
             approval_rule(finding.tier)
         );
     }
-    let merger = if gate.active_gate >= 1 && tier <= gate.active_gate.min(2) {
+    let merger = if gate.agent_may_merge(tier) {
         "an agent may merge under the merge contract"
     } else {
         "the Owner merges"
