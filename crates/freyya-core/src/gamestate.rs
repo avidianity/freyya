@@ -6,6 +6,7 @@ use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
+use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SavePopStatistics, SaveState};
 use crate::money::Budget;
 use crate::{GameDate, Money, PlayerCountry, Refusal, Snapshot};
 
@@ -16,6 +17,12 @@ pub(crate) struct Gamestate {
     meta_data: MetaData,
     player_manager: Manager<Player>,
     country_manager: Manager<MaybeCountry>,
+    #[serde(default)]
+    states: Database<SaveState>,
+    #[serde(default)]
+    building_manager: Database<SaveBuilding>,
+    #[serde(default)]
+    pops: Database<SavePop>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +53,8 @@ struct Country {
     definition: Option<String>,
     #[serde(default)]
     budget: Option<Budget>,
+    #[serde(default)]
+    pop_statistics: Option<SavePopStatistics>,
 }
 
 impl<'de> Deserialize<'de> for MaybeCountry {
@@ -106,11 +115,19 @@ impl Gamestate {
             name: self.meta_data.name.clone(),
         };
         let money = Money::from_budget(country_id, country.budget.as_ref());
+        let buildings_and_jobs = buildings_jobs::buildings_and_jobs(
+            country_id,
+            &self.states,
+            &self.building_manager,
+            &self.pops,
+            country.pop_statistics.as_ref(),
+        );
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
             player_country,
             money,
+            buildings_and_jobs,
         })
     }
 
