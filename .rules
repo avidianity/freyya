@@ -46,7 +46,7 @@ For a narrow operational request (such as committing, pushing, or running one co
 | Create or update issues or pull requests | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) | |
 | Handle a repeated agent mistake or an escaped defect | [docs/agents/corrections.md](docs/agents/corrections.md) | |
 | Touch secrets, credentials, production, or untrusted input | [docs/agents/security.md](docs/agents/security.md) | |
-| Work on saves, game files, snapshots, or advice | [GLOSSARY.md](GLOSSARY.md) | [the feasibility note](docs/research/victoria-3-advisor-feasibility.md) before you decide what freyya reads or estimates |
+| Work on saves, game files, snapshots, or advice | [GLOSSARY.md](GLOSSARY.md), [the product brief](docs/research/product-brief.md) | [the feasibility note](docs/research/victoria-3-advisor-feasibility.md) before you decide what freyya reads or estimates |
 
 Read a domain's or module's `RULES.md`, `GLOSSARY.md`, `HOW-TO.md`, and `STATE.md` (when present) before you edit files in its folder.
 When `HOW-TO.md` or `STATE.md` indexes topic guides in `how-to/` or `state/`, read only the guides for the area you edit.
@@ -75,7 +75,7 @@ See `docs/agents/domain.md`.
 ## Mandatory boundaries
 
 - Freyya only reads the game: never write, move, or delete anything in the Victoria 3 install folder, the save folder, or the Paradox launcher settings.
-- Never commit game files or save files; test with synthetic fixtures or copies outside the repository.
+- Never commit game files; commit a Save only to `fixtures/saves/`, under 50 MB ([ADR 0005](docs/adr/0005-commit-real-saves.md)).
 - Automated tests make no network calls and no paid AI calls; inject deterministic stand-ins.
 - At Gate 0 the Owner merges every pull request; never merge one yourself. GitHub cannot enforce this here ([ADR 0004](docs/adr/0004-public-repo-single-account.md)).
 - Never skip Git hooks; fix hook failures instead.
