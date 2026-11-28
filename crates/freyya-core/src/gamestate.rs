@@ -2,13 +2,14 @@ use std::collections::HashMap;
 use std::fmt;
 
 use jomini::envelope::JominiTextFile;
-use serde::de::{self, IgnoredAny, MapAccess, Visitor};
+use serde::de::value::MapAccessDeserializer;
+use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use crate::goods_market::{
-    self, Buildings, CountryMarket, MarketCountry, MarketSections, Markets, States,
-};
-use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
+use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SavePopStatistics, SaveState};
+use crate::goods_market::{self, MarketCountry, MarketSections, SaveMarket};
+use crate::money::Budget;
+use crate::{GameDate, Money, PlayerCountry, Refusal, Snapshot};
 
 const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
 
@@ -18,11 +19,13 @@ pub(crate) struct Gamestate {
     player_manager: Manager<Player>,
     country_manager: Manager<MaybeCountry>,
     #[serde(default)]
-    market_manager: Markets,
+    states: Database<SaveState>,
     #[serde(default)]
-    states: States,
+    building_manager: Database<SaveBuilding>,
     #[serde(default)]
-    building_manager: Buildings,
+    pops: Database<SavePop>,
+    #[serde(default)]
+    market_manager: Database<SaveMarket>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,10 +50,16 @@ struct Player {
 #[derive(Debug)]
 struct MaybeCountry(Option<Country>);
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 struct Country {
+    #[serde(default)]
     definition: Option<String>,
-    market: CountryMarket,
+    #[serde(default)]
+    budget: Option<Budget>,
+    #[serde(default)]
+    pop_statistics: Option<SavePopStatistics>,
+    #[serde(default)]
+    market: Option<u32>,
 }
 
 impl<'de> Deserialize<'de> for MaybeCountry {
@@ -75,17 +84,9 @@ impl<'de> Visitor<'de> for MaybeCountryVisitor {
         }
     }
 
-    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        let mut definition = None;
-        let mut market = CountryMarket::default();
-        while let Some(key) = map.next_key::<String>()? {
-            if key == "definition" {
-                definition = Some(map.next_value::<String>()?);
-            } else if !market.read_field(&key, &mut map)? {
-                map.next_value::<IgnoredAny>()?;
-            }
-        }
-        Ok(MaybeCountry(Some(Country { definition, market })))
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+        Country::deserialize(MapAccessDeserializer::new(map))
+            .map(|country| MaybeCountry(Some(country)))
     }
 }
 
@@ -113,9 +114,21 @@ impl Gamestate {
             });
         }
         let game_date = parse_game_date(&self.meta_data.game_date)?;
-        let (player, tag) = self.player()?;
+        let (country_id, country, tag) = self.player_country()?;
+        let player_country = PlayerCountry {
+            tag: tag.to_owned(),
+            name: self.meta_data.name.clone(),
+        };
+        let money = Money::from_budget(country_id, country.budget.as_ref());
+        let buildings_and_jobs = buildings_jobs::buildings_and_jobs(
+            country_id,
+            &self.states,
+            &self.building_manager,
+            &self.pops,
+            country.pop_statistics.as_ref(),
+        );
         let goods_market = goods_market::player_goods_market(
-            player,
+            country_id,
             &self.market_countries(),
             &MarketSections {
                 markets: &self.market_manager,
@@ -126,10 +139,9 @@ impl Gamestate {
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
-            player_country: PlayerCountry {
-                tag,
-                name: self.meta_data.name,
-            },
+            player_country,
+            money,
+            buildings_and_jobs,
             goods_market,
         })
     }
@@ -142,13 +154,14 @@ impl Gamestate {
                 country.0.as_ref().map(|country| MarketCountry {
                     id: *id,
                     tag: country.definition.as_deref(),
-                    market: &country.market,
+                    market: country.market,
+                    budget: country.budget.as_ref(),
                 })
             })
             .collect()
     }
 
-    fn player(&self) -> Result<(u32, String), Refusal> {
+    fn player_country(&self) -> Result<(u32, &Country, &str), Refusal> {
         let mut players = self.player_manager.database.values();
         let player = match (players.next(), players.next()) {
             (Some(player), None) => player,
@@ -164,10 +177,12 @@ impl Gamestate {
             }
         };
         match self.country_manager.database.get(&player.country) {
-            Some(MaybeCountry(Some(Country {
-                definition: Some(tag),
-                ..
-            }))) => Ok((player.country, tag.clone())),
+            Some(MaybeCountry(Some(
+                country @ Country {
+                    definition: Some(tag),
+                    ..
+                },
+            ))) => Ok((player.country, country, tag)),
             _ => Err(Refusal::Damaged {
                 detail: format!("the player's country {} is not in the Save", player.country),
             }),

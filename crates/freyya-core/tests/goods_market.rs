@@ -101,7 +101,7 @@ fn hand_made_market_save(country: &str) -> Vec<u8> {
         "SAV01000000000000000000\n\
          meta_data={{ version=\"1.15.2\" game_date=1840.3.9.6 name=\"Testland\" }}\n\
          country_manager={{ database={{ 0=none 7={{ definition=\"TST\" {country} }} }} }}\n\
-         states={{ database={{ 0=none 1={{ country=7 }} }} }}\n\
+         states={{ database={{ 0=none 1={{ country=7 region=\"STATE_TEST\" }} }} }}\n\
          market_manager={{ database={{ 3={{ owner=7 }} }} }}\n\
          building_manager={{ database={{ 0=none 5={{ building=\"building_textile_mill\" state=1 \
          output_goods={{ behavior=keep_zeros goods={{ 12={{ value=5.5 }} }} }} }} }} }}\n\

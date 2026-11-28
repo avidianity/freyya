@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::Money;
+use crate::buildings_jobs::BuildingsAndJobs;
 use crate::goods_market::GoodsMarket;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -7,6 +9,8 @@ pub struct Snapshot {
     pub game_version: String,
     pub game_date: GameDate,
     pub player_country: PlayerCountry,
+    pub money: Money,
+    pub buildings_and_jobs: BuildingsAndJobs,
     pub goods_market: Option<GoodsMarket>,
 }
 

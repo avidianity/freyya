@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
-use std::marker::PhantomData;
 
-use serde::de::value::MapAccessDeserializer;
-use serde::de::{self, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
+
+use crate::buildings_jobs::{Database, SaveBuilding, SaveState};
+use crate::money::Budget;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GoodsMarket {
@@ -65,73 +65,8 @@ impl fmt::Display for Observation {
     }
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct CountryMarket {
-    market: Option<u32>,
-    budget: Option<BudgetPrices>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BudgetPrices {
-    current_price_report: Option<GoodAmounts>,
-}
-
-impl CountryMarket {
-    pub(crate) fn read_field<'de, A: MapAccess<'de>>(
-        &mut self,
-        key: &str,
-        map: &mut A,
-    ) -> Result<bool, A::Error> {
-        match key {
-            "market" => self.market = Some(map.next_value()?),
-            "budget" => self.budget = Some(map.next_value()?),
-            _ => return Ok(false),
-        }
-        Ok(true)
-    }
-}
-
-pub(crate) struct MarketCountry<'a> {
-    pub(crate) id: u32,
-    pub(crate) tag: Option<&'a str>,
-    pub(crate) market: &'a CountryMarket,
-}
-
 #[derive(Debug, Default, Deserialize)]
-pub(crate) struct Markets {
-    database: HashMap<u32, Slot<MarketRecord>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MarketRecord {
-    owner: u32,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub(crate) struct States {
-    database: HashMap<u32, Slot<StateRecord>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct StateRecord {
-    country: Option<u32>,
-    trade: Option<GoodAmounts>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub(crate) struct Buildings {
-    database: HashMap<u32, Slot<BuildingRecord>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BuildingRecord {
-    state: Option<u32>,
-    input_goods: Option<GoodAmounts>,
-    output_goods: Option<GoodAmounts>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct GoodAmounts {
+pub(crate) struct GoodAmounts {
     #[serde(default)]
     goods: HashMap<u16, GoodAmount>,
 }
@@ -141,40 +76,22 @@ struct GoodAmount {
     value: f64,
 }
 
-#[derive(Debug)]
-struct Slot<T>(Option<T>);
-
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for Slot<T> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_any(SlotVisitor(PhantomData))
-    }
+#[derive(Debug, Deserialize)]
+pub(crate) struct SaveMarket {
+    owner: u32,
 }
 
-struct SlotVisitor<T>(PhantomData<T>);
-
-impl<'de, T: Deserialize<'de>> Visitor<'de> for SlotVisitor<T> {
-    type Value = Slot<T>;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("an object or none")
-    }
-
-    fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
-        match value {
-            "none" => Ok(Slot(None)),
-            other => Err(E::invalid_value(de::Unexpected::Str(other), &self)),
-        }
-    }
-
-    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
-        T::deserialize(MapAccessDeserializer::new(map)).map(|value| Slot(Some(value)))
-    }
+pub(crate) struct MarketCountry<'a> {
+    pub(crate) id: u32,
+    pub(crate) tag: Option<&'a str>,
+    pub(crate) market: Option<u32>,
+    pub(crate) budget: Option<&'a Budget>,
 }
 
 pub(crate) struct MarketSections<'a> {
-    pub(crate) markets: &'a Markets,
-    pub(crate) states: &'a States,
-    pub(crate) buildings: &'a Buildings,
+    pub(crate) markets: &'a Database<SaveMarket>,
+    pub(crate) states: &'a Database<SaveState>,
+    pub(crate) buildings: &'a Database<SaveBuilding>,
 }
 
 #[derive(Default)]
@@ -191,18 +108,16 @@ pub(crate) fn player_goods_market(
     let market = countries
         .iter()
         .find(|country| country.id == player)?
-        .market
         .market?;
     let owner_id = sections
         .markets
-        .database
-        .get(&market)
-        .and_then(|record| record.0.as_ref())
-        .map(|record| record.owner);
+        .entries()
+        .find(|(id, _)| *id == market)
+        .map(|(_, record)| record.owner);
     let owner = owner_id.and_then(|id| countries.iter().find(|country| country.id == id));
     let member_ids: BTreeSet<u32> = countries
         .iter()
-        .filter(|country| country.market.market == Some(market))
+        .filter(|country| country.market == Some(market))
         .map(|country| country.id)
         .collect();
     let mut members: Vec<String> = countries
@@ -211,14 +126,10 @@ pub(crate) fn player_goods_market(
         .filter_map(|country| country.tag.map(str::to_owned))
         .collect();
     members.sort();
-    let market_states: BTreeMap<u32, &StateRecord> = sections
+    let market_states: BTreeMap<u32, &SaveState> = sections
         .states
-        .database
-        .iter()
-        .filter_map(|(id, state)| {
-            let state = state.0.as_ref()?;
-            member_ids.contains(&state.country?).then_some((*id, state))
-        })
+        .entries()
+        .filter(|(_, state)| state.country.is_some_and(|id| member_ids.contains(&id)))
         .collect();
     let orders = building_orders(sections.buildings, &market_states);
     let mut net_exports = HashMap::new();
@@ -226,7 +137,7 @@ pub(crate) fn player_goods_market(
         add_amounts(&mut net_exports, state.trade.as_ref());
     }
     let prices = owner
-        .and_then(|owner| owner.market.budget.as_ref())
+        .and_then(|owner| owner.budget)
         .and_then(|budget| budget.current_price_report.as_ref());
     let mut goods: BTreeSet<u16> = prices
         .map(|report| report.goods.keys().copied().collect())
@@ -270,19 +181,14 @@ pub(crate) fn player_goods_market(
 }
 
 fn building_orders(
-    buildings: &Buildings,
-    market_states: &BTreeMap<u32, &StateRecord>,
+    buildings: &Database<SaveBuilding>,
+    market_states: &BTreeMap<u32, &SaveState>,
 ) -> BuildingOrders {
     let mut orders = BuildingOrders::default();
     let in_market = buildings
-        .database
-        .values()
-        .filter_map(|building| building.0.as_ref())
-        .filter(|building| {
-            building
-                .state
-                .is_some_and(|state| market_states.contains_key(&state))
-        });
+        .entries()
+        .map(|(_, building)| building)
+        .filter(|building| market_states.contains_key(&building.state));
     for building in in_market {
         add_amounts(&mut orders.sell, building.output_goods.as_ref());
         add_amounts(&mut orders.buy, building.input_goods.as_ref());
