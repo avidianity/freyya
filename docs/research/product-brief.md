@@ -366,4 +366,10 @@ The Owner has one Sweden **Campaign** at 1837: five rotating autosaves of about 
 13. **Where work lives.**
     This brief keeps the Owner's intent, [issue #4](https://github.com/avidianity/freyya/issues/4) holds the investigation scope, and the findings report arrives in `docs/research/` as a pull request.
 
+Added by the Owner on 2026-11-28, after the grill:
+
+- AI will be added after the investigation; anything that can be found deterministically stays AI-free, so every user pays as little as possible.
+- The starting model is DeepSeek Flash through OpenRouter. On 2026-11-28 OpenRouter listed `deepseek/deepseek-v4.1-flash` (0.051 USD per million input tokens, 0.567 USD per million output tokens) and `deepseek/deepseek-v4-flash` (0.09 and 0.18), both with tool calling.
+- A settings page lets the user change the model, and the provider if freyya later supports providers other than OpenRouter.
+
 Left for after the report: the AI budget (the $0.50 per day default and how the Owner approves going over it), model choice and routing, where the AI key is stored, a hands-on mod test, and the order of features after the investigation.
