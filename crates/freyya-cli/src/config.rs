@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use freyya_core::Rakaly;
 
-pub(crate) const USAGE: &str = "usage: freyya-cli read-save <SAVE> [--rakaly <PATH>] [--game <DIR>]\n       freyya-cli check-game-files [--game <DIR>]";
+pub(crate) const USAGE: &str = "usage: freyya-cli read-save <SAVE> [--rakaly <PATH>] [--game <DIR>]\n       freyya-cli check-game-files [--game <DIR>]\n       freyya-cli measure-save <SAVE>... [--rakaly <PATH>]";
 
 const DEFAULT_GAME_FOLDER: &str = r"C:\Program Files (x86)\Steam\steamapps\common\Victoria 3";
 
@@ -16,12 +16,17 @@ pub(crate) enum Command {
     CheckGameFiles {
         game: PathBuf,
     },
+    MeasureSave {
+        saves: Vec<PathBuf>,
+        rakaly: Rakaly,
+    },
 }
 
 pub(crate) fn command_from_args(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
     match args.next().as_deref() {
         Some("read-save") => read_save_args(args),
         Some("check-game-files") => check_game_files_args(args),
+        Some("measure-save") => measure_save_args(args),
         Some(other) => Err(format!("unknown command {other:?}")),
         None => Err("no command given".to_owned()),
     }
@@ -44,6 +49,24 @@ fn read_save_args(mut args: impl Iterator<Item = String>) -> Result<Command, Str
     }
     let save = save.ok_or("no Save path given")?;
     Ok(Command::ReadSave { save, rakaly, game })
+}
+
+fn measure_save_args(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
+    let mut saves = Vec::new();
+    let mut rakaly = Rakaly::on_path();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--rakaly" => {
+                let path = args.next().ok_or("--rakaly needs a path")?;
+                rakaly = Rakaly::at(path);
+            }
+            _ => saves.push(PathBuf::from(arg)),
+        }
+    }
+    if saves.is_empty() {
+        return Err("no Save path given".to_owned());
+    }
+    Ok(Command::MeasureSave { saves, rakaly })
 }
 
 fn check_game_files_args(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
