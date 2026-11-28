@@ -1,6 +1,7 @@
 use std::fmt;
 
 use crate::buildings_jobs::BuildingsAndJobs;
+use crate::goods_market::GoodsMarket;
 use crate::{Construction, Money};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -11,6 +12,7 @@ pub struct Snapshot {
     pub money: Money,
     pub buildings_and_jobs: BuildingsAndJobs,
     pub construction: Construction,
+    pub goods_market: Option<GoodsMarket>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

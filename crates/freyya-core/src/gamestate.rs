@@ -9,6 +9,7 @@ use serde::{Deserialize, Deserializer};
 
 use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SavePopStatistics, SaveState};
 use crate::construction::{self, SavedAi, SavedQueue};
+use crate::goods_market::{self, MarketCountry, MarketSections, SaveMarket};
 use crate::money::Budget;
 use crate::{GameDate, Money, PlayerCountry, Refusal, Snapshot};
 
@@ -26,6 +27,8 @@ pub(crate) struct Gamestate {
     building_manager: Database<SaveBuilding>,
     #[serde(default)]
     pops: Database<SavePop>,
+    #[serde(default)]
+    market_manager: Database<SaveMarket>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +65,7 @@ struct Country {
     government_queue: Option<SavedQueue>,
     #[serde(default)]
     private_queue: Option<SavedQueue>,
+    market: Option<u32>,
 }
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for MaybeNone<T> {
@@ -138,6 +142,15 @@ impl Gamestate {
                     .filter_map(|(id, entry)| entry.0.as_ref().map(|entry| (*id, entry)))
             }),
         );
+        let goods_market = goods_market::player_goods_market(
+            country_id,
+            &self.market_countries(),
+            &MarketSections {
+                markets: &self.market_manager,
+                states: &self.states,
+                buildings: &self.building_manager,
+            },
+        );
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
@@ -145,7 +158,23 @@ impl Gamestate {
             money,
             buildings_and_jobs,
             construction,
+            goods_market,
         })
+    }
+
+    fn market_countries(&self) -> Vec<MarketCountry<'_>> {
+        self.country_manager
+            .database
+            .iter()
+            .filter_map(|(id, country)| {
+                country.0.as_ref().map(|country| MarketCountry {
+                    id: *id,
+                    tag: country.definition.as_deref(),
+                    market: country.market,
+                    budget: country.budget.as_ref(),
+                })
+            })
+            .collect()
     }
 
     fn player_country(&self) -> Result<(u32, &Country, &str), Refusal> {

@@ -4,6 +4,7 @@ mod config;
 use std::path::Path;
 use std::process::ExitCode;
 
+use freyya_core::goods_market::GoodsMarket;
 use freyya_core::{
     Catalog, Construction, QueuedConstruction, Rakaly, check_game_files, read_game_files, read_save,
 };
@@ -57,6 +58,7 @@ fn print_save(path: &Path, rakaly: &Rakaly, game: Option<&Path>) -> ExitCode {
                 catalog.as_ref(),
             );
             print_construction(&snapshot.construction, catalog.as_ref());
+            print_goods_market(snapshot.goods_market.as_ref(), catalog.as_ref());
             ExitCode::SUCCESS
         }
         Err(refusal) => {
@@ -113,5 +115,42 @@ pub(crate) fn building_label(key: &str, catalog: Option<&Catalog>) -> String {
     match catalog.and_then(|catalog| catalog.building_name(key)) {
         Some(name) if name != key => format!("{name} ({key})"),
         _ => key.to_owned(),
+    }
+}
+
+fn print_goods_market(market: Option<&GoodsMarket>, catalog: Option<&Catalog>) {
+    let Some(market) = market else {
+        println!("Goods market:   missing (the Save names no market for the player's country)");
+        return;
+    };
+    println!(
+        "Goods market:   {} (owner {}; members {})",
+        market.market,
+        market.owner.as_deref().unwrap_or("missing"),
+        market.members.join(", ")
+    );
+    for good in &market.goods {
+        println!("  {}", good_label(good.good, catalog));
+        println!("    Price:                      {}", good.price);
+        println!(
+            "    Sell orders from buildings: {}",
+            good.sell_orders_from_buildings
+        );
+        println!(
+            "    Buy orders from buildings:  {}",
+            good.buy_orders_from_buildings
+        );
+        println!(
+            "    Buy orders from pops:       {}",
+            good.buy_orders_from_pops
+        );
+        println!("    Net exports:                {}", good.net_exports);
+    }
+}
+
+fn good_label(index: u16, catalog: Option<&Catalog>) -> String {
+    match catalog.and_then(|catalog| catalog.good_name(usize::from(index))) {
+        Some(name) => format!("{name} (good {index})"),
+        None => format!("Good {index}"),
     }
 }

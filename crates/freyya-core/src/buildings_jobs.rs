@@ -6,6 +6,8 @@ use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
+use crate::goods_market::GoodAmounts;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct BuildingsAndJobs {
     pub states: Vec<StateBuildings>,
@@ -107,7 +109,7 @@ impl<T> Default for Database<T> {
 }
 
 impl<T> Database<T> {
-    fn entries(&self) -> impl Iterator<Item = (u32, &T)> {
+    pub(crate) fn entries(&self) -> impl Iterator<Item = (u32, &T)> {
         self.database
             .iter()
             .filter_map(|(id, entry)| entry.0.as_ref().map(|entry| (*id, entry)))
@@ -116,17 +118,23 @@ impl<T> Database<T> {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct SaveState {
-    country: Option<u32>,
+    pub(crate) country: Option<u32>,
     region: String,
+    #[serde(default)]
+    pub(crate) trade: Option<GoodAmounts>,
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct SaveBuilding {
     building: String,
-    state: u32,
+    pub(crate) state: u32,
     levels: Option<u32>,
     production_methods: Option<Vec<String>>,
     staffing: Option<f64>,
+    #[serde(default)]
+    pub(crate) input_goods: Option<GoodAmounts>,
+    #[serde(default)]
+    pub(crate) output_goods: Option<GoodAmounts>,
 }
 
 #[derive(Debug, Deserialize)]

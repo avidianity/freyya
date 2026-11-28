@@ -3,6 +3,7 @@ mod catalog;
 mod construction;
 mod envelope;
 mod gamestate;
+pub mod goods_market;
 mod money;
 mod observation;
 mod rakaly;

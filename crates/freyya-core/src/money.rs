@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+use crate::goods_market::GoodAmounts;
 use crate::observation::{Observation, Unit, observe};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,6 +21,8 @@ pub(crate) struct Budget {
     weekly_expenses: Vec<f64>,
     #[serde(default)]
     principal: Option<f64>,
+    #[serde(default)]
+    pub(crate) current_price_report: Option<GoodAmounts>,
 }
 
 impl Money {
