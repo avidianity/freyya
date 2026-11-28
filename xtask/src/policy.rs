@@ -79,6 +79,20 @@ pub(crate) fn layout_at(repo: &Repo, base: &str) -> Result<Layout> {
 #[derive(Deserialize)]
 pub(crate) struct Gate {
     pub active_gate: u8,
+    #[serde(default)]
+    pub agent_merge_max_tier: Option<u8>,
+}
+
+impl Gate {
+    pub(crate) fn agent_may_merge(&self, tier: u8) -> bool {
+        if self.active_gate == 0 {
+            return false;
+        }
+        match self.agent_merge_max_tier {
+            Some(max) => tier <= max.min(3),
+            None => self.active_gate >= 1 && tier <= self.active_gate.min(2),
+        }
+    }
 }
 
 pub(crate) fn gate_at(repo: &Repo, base: &str) -> Result<Gate> {
@@ -122,7 +136,39 @@ impl TierMap {
 
 #[cfg(test)]
 mod tests {
-    use super::{TierMap, TierRule};
+    use super::{Gate, TierMap, TierRule};
+
+    #[test]
+    fn gate_zero_lets_no_agent_merge_and_an_override_raises_the_limit() {
+        let gate_zero = Gate {
+            active_gate: 0,
+            agent_merge_max_tier: None,
+        };
+        assert!(!gate_zero.agent_may_merge(0));
+        let gate_three = Gate {
+            active_gate: 3,
+            agent_merge_max_tier: None,
+        };
+        assert!(gate_three.agent_may_merge(2));
+        assert!(!gate_three.agent_may_merge(3));
+        let prototype = Gate {
+            active_gate: 3,
+            agent_merge_max_tier: Some(3),
+        };
+        assert!(prototype.agent_may_merge(3));
+        assert!(!prototype.agent_may_merge(4));
+        let switched_off = Gate {
+            active_gate: 0,
+            agent_merge_max_tier: Some(3),
+        };
+        assert!(!switched_off.agent_may_merge(0));
+        let too_high = Gate {
+            active_gate: 3,
+            agent_merge_max_tier: Some(4),
+        };
+        assert!(too_high.agent_may_merge(3));
+        assert!(!too_high.agent_may_merge(4));
+    }
 
     fn map() -> TierMap {
         TierMap {

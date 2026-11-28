@@ -22,6 +22,7 @@ GitHub also never lets an account approve its own pull request.
 - `CODEOWNERS` names the Owner for protected paths, as documentation; GitHub cannot enforce it here.
 - At Gate 0, the Owner merges every pull request.
   Agents follow this as a rule in `.rules`; GitHub does not enforce it.
+- Amended 2026-11-28: [ADR 0006](0006-agents-merge-during-prototype.md) lets agents merge up to Tier 3 during the prototype.
 
 ## Considered options
 

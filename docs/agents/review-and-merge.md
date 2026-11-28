@@ -95,13 +95,15 @@ The Owner can also override it for one pull request by saying so on that pull re
 **Never** fits an Owner who does not read code.
 The Owner still makes every Decision and approves every risky change, from a plain-language Risk summary.
 
+During the prototype, the Owner gave a standing yes to Tier 3 Risk summaries, so an agent merges a Tier 3 change after an Independent reviewer PASS and the merge contract below ([ADR 0006](../adr/0006-agents-merge-during-prototype.md)).
+
 "The agent never runs it alone" means: the agent prepares the change and the procedure, and the Owner starts it or watches it run.
 
 ## Mandatory: merge contract for agent merges
 
-An agent merges a Tier 0 to 2 change only when all of these are true:
+An agent merges a change only when all of these are true:
 
-- [ ] The tier check ran from the protected base revision on the final revision and gave Tier 0, 1, or 2.
+- [ ] The tier check ran from the protected base revision on the final revision, and the active Autonomy gate lets an agent merge that Tier (Tier 0 to 2, or Tier 3 with an Independent reviewer PASS under [ADR 0006](../adr/0006-agents-merge-during-prototype.md)).
 - [ ] Every required CI job passed on the exact revision that merges.
 - [ ] The merged-result check in [git.md](./git.md#mandatory-check-the-merged-result-before-a-merge) passed.
 - [ ] A behavior change has a fail-first test.
@@ -164,7 +166,7 @@ It asks one yes or no question.
 
 ## Mandatory: what an agent never does
 
-- Merge a Tier 3 or 4 change without the approval this page requires.
+- Merge a Tier 3 change without an Independent reviewer PASS, or a Tier 4 change at all.
 - Change the tier map, the tier check, or the Review mode without an Owner Decision.
 - Run a Tier 4 operation alone.
 - Treat green CI, agent agreement, or a confident explanation as a substitute for the evidence above.

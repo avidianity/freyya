@@ -77,7 +77,7 @@ See `docs/agents/domain.md`.
 - Freyya only reads the game: never write, move, or delete anything in the Victoria 3 install folder, the save folder, or the Paradox launcher settings.
 - Never commit game files; commit a Save only when the Owner asks, to `fixtures/saves/`, under 50 MB ([ADR 0005](docs/adr/0005-commit-real-saves.md)).
 - Automated tests make no network calls and no paid AI calls; inject deterministic stand-ins.
-- At Gate 0 the Owner merges every pull request; never merge one yourself. GitHub cannot enforce this here ([ADR 0004](docs/adr/0004-public-repo-single-account.md)).
+- Merge a pull request under the merge contract; Tier 3 also needs an Independent reviewer PASS, Tier 4 the Owner ([ADR 0006](docs/adr/0006-agents-merge-during-prototype.md)).
 - Never skip Git hooks; fix hook failures instead.
 - Start a persistent server, worker, or watcher only with Owner permission; short-lived test-owned servers are allowed.
 - Before the first code or branch task, fast-forward the main checkout when clean and tracking a remote; otherwise leave it and report why.
