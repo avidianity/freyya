@@ -183,6 +183,9 @@ The skills above load these helpers themselves, so you never start them:
 - Each merge that the Review mode and active autonomy gate give to you.
 - Each Tier 4 operation, which you start or watch.
 
+GitHub will not merge into `main` until a pull request passes the `rust`, `repo`, and `policy` checks.
+This also applies to your own account, and no approval is needed ([ADR 0004](adr/0004-public-repo-single-account.md)).
+
 ## Setup on your machine
 
 - On a new machine, restore the Project's skills with `npx skills@1.9.0 experimental_install --frozen-lockfile --agent codex`.
