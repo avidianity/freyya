@@ -1,3 +1,4 @@
+pub mod buildings_jobs;
 mod envelope;
 mod gamestate;
 mod rakaly;

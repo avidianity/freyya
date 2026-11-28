@@ -5,6 +5,7 @@ use jomini::envelope::JominiTextFile;
 use serde::de::{self, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
+use crate::buildings_jobs::{self, Database, SaveBuilding, SaveState};
 use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
 
 const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
@@ -14,6 +15,10 @@ pub(crate) struct Gamestate {
     meta_data: MetaData,
     player_manager: Manager<Player>,
     country_manager: Manager<MaybeCountry>,
+    #[serde(default)]
+    states: Database<SaveState>,
+    #[serde(default)]
+    building_manager: Database<SaveBuilding>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,7 +102,9 @@ impl Gamestate {
             });
         }
         let game_date = parse_game_date(&self.meta_data.game_date)?;
-        let tag = self.player_tag()?;
+        let (country_id, tag) = self.player_country()?;
+        let buildings_and_jobs =
+            buildings_jobs::buildings_and_jobs(country_id, &self.states, &self.building_manager);
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
@@ -105,10 +112,11 @@ impl Gamestate {
                 tag,
                 name: self.meta_data.name,
             },
+            buildings_and_jobs,
         })
     }
 
-    fn player_tag(&self) -> Result<String, Refusal> {
+    fn player_country(&self) -> Result<(u32, String), Refusal> {
         let mut players = self.player_manager.database.values();
         let player = match (players.next(), players.next()) {
             (Some(player), None) => player,
@@ -124,7 +132,7 @@ impl Gamestate {
             }
         };
         match self.country_manager.database.get(&player.country) {
-            Some(MaybeCountry(Some(tag))) => Ok(tag.clone()),
+            Some(MaybeCountry(Some(tag))) => Ok((player.country, tag.clone())),
             _ => Err(Refusal::Damaged {
                 detail: format!("the player's country {} is not in the Save", player.country),
             }),
