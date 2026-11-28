@@ -69,3 +69,19 @@ fn manual_save_gives_buildings_with_levels_methods_and_staffing() {
         )
     );
 }
+
+#[test]
+fn manual_save_gives_employees_of_each_building_from_its_pops() {
+    let snapshot = manual_save_snapshot();
+    let svealand = state(&snapshot, "STATE_SVEALAND");
+
+    assert_eq!(
+        building(svealand, 0).employees,
+        observed(
+            6000,
+            Unit::People,
+            "pops.database.*.workforce where workplace=0"
+        )
+    );
+    assert_eq!(building(svealand, 9).employees.value, Some(895));
+}

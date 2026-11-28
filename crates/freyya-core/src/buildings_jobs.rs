@@ -25,6 +25,7 @@ pub struct Building {
     pub levels: Observation<u32>,
     pub production_methods: Observation<Vec<String>>,
     pub staffing: Observation<f64>,
+    pub employees: Observation<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +37,7 @@ pub struct Observation<T> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unit {
+    People,
     Levels,
     StaffedLevels,
     ProductionMethods,
@@ -44,6 +46,7 @@ pub enum Unit {
 impl fmt::Display for Unit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Unit::People => "people",
             Unit::Levels => "levels",
             Unit::StaffedLevels => "staffed levels",
             Unit::ProductionMethods => "production methods",
@@ -117,11 +120,19 @@ pub(crate) struct SaveBuilding {
     staffing: Option<f64>,
 }
 
+#[derive(Debug, Deserialize)]
+pub(crate) struct SavePop {
+    workforce: Option<u64>,
+    workplace: Option<u32>,
+}
+
 pub(crate) fn buildings_and_jobs(
     player_country: u32,
     states: &Database<SaveState>,
     buildings: &Database<SaveBuilding>,
+    pops: &Database<SavePop>,
 ) -> BuildingsAndJobs {
+    let employees = employees_by_workplace(pops);
     let mut player_states: Vec<StateBuildings> = states
         .entries()
         .filter(|(_, state)| state.country == Some(player_country))
@@ -137,7 +148,9 @@ pub(crate) fn buildings_and_jobs(
             .iter_mut()
             .find(|state| state.state_id == building.state)
         {
-            state.buildings.push(observe_building(id, building));
+            state
+                .buildings
+                .push(observe_building(id, building, employees.get(&id).copied()));
         }
     }
     for state in &mut player_states {
@@ -148,7 +161,17 @@ pub(crate) fn buildings_and_jobs(
     }
 }
 
-fn observe_building(id: u32, building: &SaveBuilding) -> Building {
+fn employees_by_workplace(pops: &Database<SavePop>) -> HashMap<u32, u64> {
+    let mut employees = HashMap::new();
+    for (_, pop) in pops.entries() {
+        if let Some(workplace) = pop.workplace {
+            *employees.entry(workplace).or_insert(0) += pop.workforce.unwrap_or(0);
+        }
+    }
+    employees
+}
+
+fn observe_building(id: u32, building: &SaveBuilding, employees: Option<u64>) -> Building {
     let source = |field: &str| format!("building_manager.database.{id}.{field}");
     Building {
         id,
@@ -167,6 +190,11 @@ fn observe_building(id: u32, building: &SaveBuilding) -> Building {
             value: building.staffing,
             unit: Unit::StaffedLevels,
             source: source("staffing"),
+        },
+        employees: Observation {
+            value: employees,
+            unit: Unit::People,
+            source: format!("pops.database.*.workforce where workplace={id}"),
         },
     }
 }

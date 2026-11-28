@@ -5,7 +5,7 @@ use jomini::envelope::JominiTextFile;
 use serde::de::{self, IgnoredAny, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
-use crate::buildings_jobs::{self, Database, SaveBuilding, SaveState};
+use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SaveState};
 use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
 
 const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
@@ -19,6 +19,8 @@ pub(crate) struct Gamestate {
     states: Database<SaveState>,
     #[serde(default)]
     building_manager: Database<SaveBuilding>,
+    #[serde(default)]
+    pops: Database<SavePop>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,8 +105,12 @@ impl Gamestate {
         }
         let game_date = parse_game_date(&self.meta_data.game_date)?;
         let (country_id, tag) = self.player_country()?;
-        let buildings_and_jobs =
-            buildings_jobs::buildings_and_jobs(country_id, &self.states, &self.building_manager);
+        let buildings_and_jobs = buildings_jobs::buildings_and_jobs(
+            country_id,
+            &self.states,
+            &self.building_manager,
+            &self.pops,
+        );
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
