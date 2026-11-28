@@ -4,17 +4,17 @@ use std::marker::PhantomData;
 
 use serde::de::value::MapAccessDeserializer;
 use serde::de::{self, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::goods_market::GoodAmounts;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BuildingsAndJobs {
     pub states: Vec<StateBuildings>,
     pub jobs: Jobs,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Jobs {
     pub salaried_workforce: Observation<u64>,
     pub subsisting_workforce: Observation<u64>,
@@ -22,14 +22,14 @@ pub struct Jobs {
     pub vacancies: Observation<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct StateBuildings {
     pub state_id: u32,
     pub region: String,
     pub buildings: Vec<Building>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Building {
     pub id: u32,
     pub kind: String,
@@ -39,14 +39,14 @@ pub struct Building {
     pub employees: Observation<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Observation<T> {
     pub value: Option<T>,
     pub unit: Unit,
     pub source: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Unit {
     People,
     Levels,

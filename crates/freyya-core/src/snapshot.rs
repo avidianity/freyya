@@ -1,10 +1,12 @@
 use std::fmt;
 
+use serde::Serialize;
+
 use crate::buildings_jobs::BuildingsAndJobs;
 use crate::goods_market::GoodsMarket;
 use crate::{Construction, Money};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Snapshot {
     pub game_version: String,
     pub game_date: GameDate,
@@ -15,7 +17,7 @@ pub struct Snapshot {
     pub goods_market: Option<GoodsMarket>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct GameDate {
     pub year: i16,
     pub month: u8,
@@ -28,7 +30,7 @@ impl fmt::Display for GameDate {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PlayerCountry {
     pub tag: String,
     pub name: String,
