@@ -57,7 +57,7 @@ impl fmt::Display for Unit {
 impl fmt::Display for Observation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.value {
-            Value::Read(value) => write!(f, "{value} {} [{}]", self.unit, self.source),
+            Value::Read(value) => write!(f, "{value:.2} {} [{}]", self.unit, self.source),
             Value::Missing { reason } => {
                 write!(f, "missing ({reason}) [{}]", self.source)
             }
