@@ -29,7 +29,7 @@ struct SavedElement {
     building: String,
     state: u32,
     construction_left: Option<f64>,
-    construction_speed: Option<f64>,
+    base_construction_speed: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -99,9 +99,9 @@ fn queue(country: u32, name: &str, saved: Option<&SavedQueue>) -> Vec<QueuedCons
                     source("construction_left"),
                 ),
                 construction_speed: observe(
-                    element.construction_speed,
+                    element.base_construction_speed,
                     Unit::ConstructionPointsPerWeek,
-                    source("construction_speed"),
+                    source("base_construction_speed"),
                 ),
             }
         })

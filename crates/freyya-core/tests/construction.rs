@@ -46,9 +46,9 @@ fn manual_save_gives_the_government_construction_queue_in_order() {
                 source: "country_manager.database.24.government_queue.construction_elements[0].construction_left".to_owned(),
             },
             construction_speed: Observation {
-                reading: Reading::Read(7.77225),
+                reading: Reading::Read(7.5),
                 unit: Unit::ConstructionPointsPerWeek,
-                source: "country_manager.database.24.government_queue.construction_elements[0].construction_speed".to_owned(),
+                source: "country_manager.database.24.government_queue.construction_elements[0].base_construction_speed".to_owned(),
             },
         }
     );
@@ -97,7 +97,7 @@ fn manual_save_gives_the_private_construction_queue() {
     assert_eq!(queue[0].building, "building_glassworks");
     assert_eq!(queue[0].state, 129);
     assert_eq!(queue[0].construction_left.reading, Reading::Read(366.76846));
-    assert_eq!(queue[0].construction_speed.reading, Reading::Read(7.77225));
+    assert_eq!(queue[0].construction_speed.reading, Reading::Read(7.5));
     assert_eq!(
         queue[0].construction_left.source,
         "country_manager.database.24.private_queue.construction_elements[0].construction_left"
