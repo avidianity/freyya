@@ -1,4 +1,5 @@
 pub mod buildings_jobs;
+mod catalog;
 mod construction;
 mod envelope;
 mod gamestate;
@@ -7,6 +8,10 @@ mod observation;
 mod rakaly;
 mod snapshot;
 
+pub use catalog::{
+    Area, AreaCheck, Catalog, CatalogRefusal, Define, Definition, Verdict, check_game_files,
+    read_game_files,
+};
 pub use construction::{Construction, QueuedConstruction};
 pub use money::Money;
 pub use observation::{Observation, Reading, Unit};

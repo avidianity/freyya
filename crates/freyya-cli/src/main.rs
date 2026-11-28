@@ -4,13 +4,16 @@ mod config;
 use std::path::Path;
 use std::process::ExitCode;
 
-use freyya_core::{Construction, QueuedConstruction, Rakaly, read_save};
+use freyya_core::{
+    Catalog, Construction, QueuedConstruction, Rakaly, check_game_files, read_game_files, read_save,
+};
 
 use config::{Command, USAGE, command_from_args};
 
 fn main() -> ExitCode {
     match command_from_args(std::env::args().skip(1)) {
-        Ok(Command::ReadSave { save, rakaly }) => print_save(&save, &rakaly),
+        Ok(Command::ReadSave { save, rakaly, game }) => print_save(&save, &rakaly, game.as_deref()),
+        Ok(Command::CheckGameFiles { game }) => print_game_files_check(&game),
         Err(problem) => {
             eprintln!("{problem}\n{USAGE}");
             ExitCode::from(64)
@@ -18,7 +21,14 @@ fn main() -> ExitCode {
     }
 }
 
-fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
+fn print_save(path: &Path, rakaly: &Rakaly, game: Option<&Path>) -> ExitCode {
+    let catalog = match game.map(read_game_files).transpose() {
+        Ok(catalog) => catalog,
+        Err(refusal) => {
+            eprintln!("Refused the Game files: {refusal}");
+            return ExitCode::from(66);
+        }
+    };
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) => {
@@ -35,12 +45,18 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
                 "Player country: {} ({})",
                 snapshot.player_country.name, snapshot.player_country.tag
             );
+            if let Some(catalog) = &catalog {
+                print_catalog_version(catalog, &snapshot.game_version);
+            }
             println!("Treasury:       {}", snapshot.money.treasury);
             println!("Income:         {}", snapshot.money.weekly_income);
             println!("Expenses:       {}", snapshot.money.weekly_expenses);
             println!("Debt:           {}", snapshot.money.debt);
-            buildings_jobs::print_buildings_and_jobs(&snapshot.buildings_and_jobs);
-            print_construction(&snapshot.construction);
+            buildings_jobs::print_buildings_and_jobs(
+                &snapshot.buildings_and_jobs,
+                catalog.as_ref(),
+            );
+            print_construction(&snapshot.construction, catalog.as_ref());
             ExitCode::SUCCESS
         }
         Err(refusal) => {
@@ -50,22 +66,52 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
     }
 }
 
-fn print_construction(construction: &Construction) {
+fn print_construction(construction: &Construction, catalog: Option<&Catalog>) {
     println!("Construction capacity: {}", construction.capacity);
-    print_queue("Government queue", &construction.government_queue);
-    print_queue("Private queue", &construction.private_queue);
+    print_queue("Government queue", &construction.government_queue, catalog);
+    print_queue("Private queue", &construction.private_queue, catalog);
 }
 
-fn print_queue(title: &str, queue: &[QueuedConstruction]) {
+fn print_queue(title: &str, queue: &[QueuedConstruction], catalog: Option<&Catalog>) {
     println!("{title}: {} items", queue.len());
     for (position, item) in queue.iter().enumerate() {
         println!(
             "  {:>2}. {} in state {}",
             position + 1,
-            item.building,
+            building_label(&item.building, catalog),
             item.state
         );
         println!("      left:  {}", item.construction_left);
         println!("      speed: {}", item.construction_speed);
+    }
+}
+
+fn print_catalog_version(catalog: &Catalog, save_version: &str) {
+    println!("Game files:     version {}", catalog.game_version);
+    if catalog.game_version != save_version {
+        println!(
+            "Warning:        the Game files ({}) and the Save ({save_version}) differ in version, so names may be wrong",
+            catalog.game_version
+        );
+    }
+}
+
+fn print_game_files_check(game: &Path) -> ExitCode {
+    println!("Game files: {}", game.display());
+    let checks = check_game_files(game);
+    for check in &checks {
+        println!("{:<20}{}", check.area.to_string(), check.verdict);
+    }
+    if checks.iter().all(|check| check.verdict.passed()) {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+pub(crate) fn building_label(key: &str, catalog: Option<&Catalog>) -> String {
+    match catalog.and_then(|catalog| catalog.building_name(key)) {
+        Some(name) if name != key => format!("{name} ({key})"),
+        _ => key.to_owned(),
     }
 }
