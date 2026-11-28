@@ -77,10 +77,12 @@ pop demand: missing (Save stores pop spending as money)
 
 Construction summary, first lines:
 
+The sample was built before the UI check; it now shows the corrected 15.0 construction points per week and speed 7.5, and the token count is unchanged within rounding.
+
 ```text
-Construction SWE 1837-08-16; capacity 25.0 pts/wk
+Construction SWE 1837-08-16; in use 15.0 pts/wk
 government queue:
-1. Livestock Ranches s130 left 25 speed 7.8
+1. Livestock Ranches s130 left 25 speed 7.5
 2. Livestock Ranches s130 left 200 speed -
 ```
 
