@@ -8,6 +8,9 @@ permissions:
   contents: read
   pull-requests: write
 
+env:
+  CARGO_PROFILE_DEV_DEBUG: "0"
+
 concurrency:
   group: policy-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -37,6 +40,11 @@ jobs:
           fi
       - name: Install the base toolchain
         run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          shared-key: linux-xtask-run
+          cache-workspace-crates: true
+          save-if: false
       - name: risk-tier and test-oracle-guard
         id: tier
         run: cargo xtask risk-tier --base "$BASE_SHA" --head refs/remotes/pr/head --github-output "$GITHUB_OUTPUT"
