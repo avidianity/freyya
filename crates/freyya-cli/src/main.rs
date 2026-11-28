@@ -35,6 +35,10 @@ fn print_save(path: &Path, rakaly: &Rakaly) -> ExitCode {
                 "Player country: {} ({})",
                 snapshot.player_country.name, snapshot.player_country.tag
             );
+            println!("Treasury:       {}", snapshot.money.treasury);
+            println!("Income:         {}", snapshot.money.weekly_income);
+            println!("Expenses:       {}", snapshot.money.weekly_expenses);
+            println!("Debt:           {}", snapshot.money.debt);
             buildings_jobs::print_buildings_and_jobs(&snapshot.buildings_and_jobs);
             ExitCode::SUCCESS
         }

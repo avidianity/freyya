@@ -2,11 +2,13 @@ use std::collections::HashMap;
 use std::fmt;
 
 use jomini::envelope::JominiTextFile;
-use serde::de::{self, IgnoredAny, MapAccess, Visitor};
+use serde::de::value::MapAccessDeserializer;
+use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
 use crate::buildings_jobs::{self, Database, SaveBuilding, SavePop, SavePopStatistics, SaveState};
-use crate::{GameDate, PlayerCountry, Refusal, Snapshot};
+use crate::money::Budget;
+use crate::{GameDate, Money, PlayerCountry, Refusal, Snapshot};
 
 const CHECKED_GAME_VERSIONS: &[&str] = &["1.15.2"];
 
@@ -42,9 +44,16 @@ struct Player {
     country: u32,
 }
 
-#[derive(Debug, Default)]
-struct MaybeCountry {
+#[derive(Debug)]
+struct MaybeCountry(Option<Country>);
+
+#[derive(Debug, Deserialize)]
+struct Country {
+    #[serde(default)]
     definition: Option<String>,
+    #[serde(default)]
+    budget: Option<Budget>,
+    #[serde(default)]
     pop_statistics: Option<SavePopStatistics>,
 }
 
@@ -65,23 +74,14 @@ impl<'de> Visitor<'de> for MaybeCountryVisitor {
 
     fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
         match value {
-            "none" => Ok(MaybeCountry::default()),
+            "none" => Ok(MaybeCountry(None)),
             other => Err(E::invalid_value(de::Unexpected::Str(other), &self)),
         }
     }
 
-    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        let mut country = MaybeCountry::default();
-        while let Some(key) = map.next_key::<String>()? {
-            if key == "definition" {
-                country.definition = Some(map.next_value::<String>()?);
-            } else if key == "pop_statistics" {
-                country.pop_statistics = Some(map.next_value()?);
-            } else {
-                map.next_value::<IgnoredAny>()?;
-            }
-        }
-        Ok(country)
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+        Country::deserialize(MapAccessDeserializer::new(map))
+            .map(|country| MaybeCountry(Some(country)))
     }
 }
 
@@ -109,29 +109,29 @@ impl Gamestate {
             });
         }
         let game_date = parse_game_date(&self.meta_data.game_date)?;
-        let (country_id, tag) = self.player_country()?;
+        let (country_id, country, tag) = self.player_country()?;
+        let player_country = PlayerCountry {
+            tag: tag.to_owned(),
+            name: self.meta_data.name.clone(),
+        };
+        let money = Money::from_budget(country_id, country.budget.as_ref());
         let buildings_and_jobs = buildings_jobs::buildings_and_jobs(
             country_id,
             &self.states,
             &self.building_manager,
             &self.pops,
-            self.country_manager
-                .database
-                .get(&country_id)
-                .and_then(|country| country.pop_statistics.as_ref()),
+            country.pop_statistics.as_ref(),
         );
         Ok(Snapshot {
             game_version: self.meta_data.version,
             game_date,
-            player_country: PlayerCountry {
-                tag,
-                name: self.meta_data.name,
-            },
+            player_country,
+            money,
             buildings_and_jobs,
         })
     }
 
-    fn player_country(&self) -> Result<(u32, String), Refusal> {
+    fn player_country(&self) -> Result<(u32, &Country, &str), Refusal> {
         let mut players = self.player_manager.database.values();
         let player = match (players.next(), players.next()) {
             (Some(player), None) => player,
@@ -147,10 +147,12 @@ impl Gamestate {
             }
         };
         match self.country_manager.database.get(&player.country) {
-            Some(MaybeCountry {
-                definition: Some(tag),
-                ..
-            }) => Ok((player.country, tag.clone())),
+            Some(MaybeCountry(Some(
+                country @ Country {
+                    definition: Some(tag),
+                    ..
+                },
+            ))) => Ok((player.country, country, tag)),
             _ => Err(Refusal::Damaged {
                 detail: format!("the player's country {} is not in the Save", player.country),
             }),
